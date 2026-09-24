@@ -4,6 +4,9 @@ import App from "./App.tsx";
 import "./index.css";
 import "./lib/firebase"; // Initialize Firebase Analytics
 import { Capacitor } from "@capacitor/core";
+import { installPwaForceUpdate } from "./lib/pwaForceUpdate";
+
+installPwaForceUpdate();
 
 // Development safeguard:
 // If a service worker is registered, it can serve stale cached JS chunks and cause

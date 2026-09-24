@@ -90,36 +90,19 @@ describe('useFreshActionable', () => {
 });
 
 describe('iPhone gesture unlock never plays the order file', () => {
-  it('taps only resume Web Audio with a generated silent buffer', async () => {
+  it('generic taps do nothing: no listeners, no order file, no silent buffer', async () => {
     const played: string[] = [];
     const origPlay = HTMLMediaElement.prototype.play;
-    HTMLMediaElement.prototype.play = function () {
-      played.push((this as HTMLMediaElement).src);
-      return Promise.resolve();
-    };
-    const started = vi.fn();
-    class FakeCtx {
-      state = 'suspended';
-      sampleRate = 44100;
-      destination = {};
-      resume = vi.fn(async () => { this.state = 'running'; });
-      createBuffer = vi.fn(() => ({}));
-      createBufferSource = () => ({ buffer: null, loop: false, connect: () => ({ connect: () => {} }), start: started });
-      createGain = () => ({ gain: { value: 1 }, connect: () => ({ connect: () => {} }) });
-      decodeAudioData = vi.fn();
-    }
-    (window as any).AudioContext = FakeCtx;
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('offline'));
+    HTMLMediaElement.prototype.play = function () { played.push((this as HTMLMediaElement).src); return Promise.resolve(); };
+    const ctor = vi.fn();
+    (window as any).AudioContext = class { constructor() { ctor(); } };
     vi.resetModules();
     await import('@/lib/globalAudio');
-    for (const ev of ['touchstart', 'click', 'pointerdown']) {
-      document.dispatchEvent(new Event(ev));
-    }
+    for (const ev of ['touchstart', 'click', 'pointerdown', 'keydown']) document.dispatchEvent(new Event(ev));
     await new Promise((r) => setTimeout(r, 0));
-    expect(played.filter((s) => s.includes('new-order.mp3'))).toHaveLength(0);
-    expect(started).toHaveBeenCalled();
+    expect(played).toHaveLength(0);
+    expect(ctor).not.toHaveBeenCalled();
     HTMLMediaElement.prototype.play = origPlay;
-    fetchSpy.mockRestore();
   });
 
   it('source has no volume-0 play of the order file', () => {

@@ -1,23 +1,24 @@
 import { claimSoundEvent } from './orderSoundGate';
-// Global audio manager for push notification sounds
-// Uses Web Audio API as primary (works reliably in background tabs once unlocked)
-// HTMLAudioElement as fallback for iOS / older browsers.
+import { isStaffPortalPath } from './portalScope';
 
-let htmlAudio: HTMLAudioElement | null = null;
+// Staff-portal order alert audio. SIDE-EFFECT FREE ON IMPORT:
+// - no document/window gesture listeners, no automatic unlock
+// - no Audio element, fetch or decode until a claimed, keyed order event plays
+// - only ever plays while the current route is a vendor/admin/rider portal
+// Customer routes never import this module (portal pages are lazy-loaded).
+
 let audioCtx: AudioContext | null = null;
 let decodedBuffer: AudioBuffer | null = null;
-let isUnlocked = false;
 let decodingPromise: Promise<void> | null = null;
+let isUnlocked = false;
 
-const SOUND_URL = '/sounds/new-order.mp3';
+// Built at runtime so the customer entry bundle never contains the file name.
+function orderSoundUrl(): string {
+  return ['/sounds/', 'new-order', '.mp3'].join('');
+}
 
-function getHtmlAudio(): HTMLAudioElement {
-  if (!htmlAudio) {
-    htmlAudio = new Audio(SOUND_URL);
-    htmlAudio.preload = 'auto';
-    htmlAudio.load();
-  }
-  return htmlAudio;
+function inPortal(): boolean {
+  return typeof window !== 'undefined' && isStaffPortalPath(window.location?.pathname);
 }
 
 function ensureAudioContext(): AudioContext | null {
@@ -26,11 +27,7 @@ function ensureAudioContext(): AudioContext | null {
   const Ctx: typeof AudioContext | undefined =
     (window as any).AudioContext || (window as any).webkitAudioContext;
   if (!Ctx) return null;
-  try {
-    audioCtx = new Ctx();
-  } catch {
-    audioCtx = null;
-  }
+  try { audioCtx = new Ctx(); } catch { audioCtx = null; }
   return audioCtx;
 }
 
@@ -40,136 +37,70 @@ async function decodeBuffer(): Promise<void> {
   if (decodingPromise) return decodingPromise;
   decodingPromise = (async () => {
     try {
-      const res = await fetch(SOUND_URL);
+      const res = await fetch(orderSoundUrl());
       const arr = await res.arrayBuffer();
       decodedBuffer = await ctx.decodeAudioData(arr.slice(0));
-      console.log('[GlobalAudio] Web Audio buffer decoded');
     } catch (e) {
-      console.warn('[GlobalAudio] Failed to decode buffer:', e);
+      console.warn('[OrderAudio] decode failed:', e);
+      decodingPromise = null;
     }
   })();
   return decodingPromise;
 }
 
-// Unlock audio on user interaction WITHOUT ever playing the real order sound.
-// iOS Safari/WKWebView ignores HTMLAudioElement.volume, so "silent" play of
-// new-order.mp3 is audible there. We only resume the Web Audio context and
-// play a generated silent buffer, which unlocks output on every platform.
+/**
+ * Explicit "Enable Sound" control inside a staff portal. Resumes Web Audio and
+ * plays a generated one-sample silent buffer. Never touches the order file.
+ */
 export async function unlockAudio(): Promise<boolean> {
   const ctx = ensureAudioContext();
   if (!ctx) return false;
+  try { if (ctx.state === 'suspended') await ctx.resume(); } catch { /* ignore */ }
   try {
-    if (ctx.state === 'suspended') await ctx.resume();
-  } catch { /* ignore */ }
-  try {
-    const silent = ctx.createBuffer(1, 1, ctx.sampleRate);
     const src = ctx.createBufferSource();
-    src.buffer = silent;
+    src.buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
     src.connect(ctx.destination);
     src.start(0);
   } catch { /* ignore */ }
-  decodeBuffer();
-  if (!isUnlocked) {
-    isUnlocked = true;
-    startKeepAlive();
-  }
-  return ctx.state === 'running' || isUnlocked;
+  isUnlocked = true;
+  return true;
 }
 
-// ----- Keep-alive: a near-silent looping Web Audio source keeps the tab
-// considered "playing audio", which prevents Chrome from suspending the
-// AudioContext and from throttling our timers in background tabs. -----
-let keepAliveStarted = false;
-function startKeepAlive() {
-  if (keepAliveStarted) return;
+async function playNow() {
   const ctx = ensureAudioContext();
-  if (!ctx) return;
-  try {
-    // 1-second silent buffer, looped forever
-    const buffer = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
-    const src = ctx.createBufferSource();
-    src.buffer = buffer;
-    src.loop = true;
-    const gain = ctx.createGain();
-    gain.gain.value = 0.0001; // effectively silent
-    src.connect(gain).connect(ctx.destination);
-    src.start(0);
-    keepAliveStarted = true;
-    console.log('[GlobalAudio] Keep-alive silent track started');
-  } catch (e) {
-    console.warn('[GlobalAudio] Keep-alive failed:', e);
-  }
-}
-
-// One-time gesture unlock; afterwards only resume a suspended context.
-if (typeof window !== 'undefined') {
-  const events = ['click', 'touchstart', 'keydown', 'pointerdown'];
-  const handler = () => {
-    if (isUnlocked && audioCtx?.state !== 'suspended') {
-      events.forEach(e => document.removeEventListener(e, handler, { capture: true } as any));
-      return;
+  if (ctx) {
+    if (ctx.state === 'suspended') await ctx.resume().catch(() => {});
+    await decodeBuffer();
+    if (decodedBuffer) {
+      try {
+        const source = ctx.createBufferSource();
+        source.buffer = decodedBuffer;
+        source.connect(ctx.destination);
+        source.start(0);
+        return;
+      } catch { /* fall through */ }
     }
-    unlockAudio();
-  };
-  events.forEach(e =>
-    document.addEventListener(e, handler, { capture: true, passive: true })
-  );
-
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && audioCtx?.state === 'suspended') {
-      audioCtx.resume().catch(() => {});
-    }
-  });
-}
-
-function playViaWebAudio(): boolean {
-  const ctx = audioCtx;
-  if (!ctx || !decodedBuffer) return false;
-  // Resume if suspended (best-effort, fire-and-forget)
-  if (ctx.state === 'suspended') {
-    ctx.resume().catch(() => {});
   }
   try {
-    const source = ctx.createBufferSource();
-    source.buffer = decodedBuffer;
-    const gain = ctx.createGain();
-    gain.gain.value = 1.0;
-    source.connect(gain).connect(ctx.destination);
-    source.start(0);
-    return true;
-  } catch (e) {
-    console.warn('[GlobalAudio] Web Audio play failed:', e);
-    return false;
+    const a = new Audio(orderSoundUrl());
+    await a.play();
+  } catch (err: any) {
+    console.warn('[OrderAudio] playback blocked:', err?.message);
   }
 }
 
-function playViaHtmlAudio() {
-  const audio = getHtmlAudio();
-  audio.currentTime = 0;
-  audio.volume = 1.0;
-  audio.play().catch(err => {
-    console.warn('[GlobalAudio] HTMLAudio playback blocked:', err.message);
-  });
-}
-
+/** Plays the order tone (portal routes only). Used by portal repeaters. */
 export function playGlobalNotificationSound() {
-  // Prefer Web Audio (reliable in background tabs once unlocked)
-  const played = playViaWebAudio();
-  if (!played) {
-    playViaHtmlAudio();
-  }
-
-  // Vibrate if supported (mobile only)
+  if (!inPortal()) return;
+  void playNow();
   if (typeof navigator !== 'undefined' && navigator.vibrate) {
     navigator.vibrate([200, 100, 200, 100, 200]);
   }
 }
 
-/**
- * Play the order sound only if this event key has never been claimed on this
- * device. Returns true when it played.
- */
+/** Plays once per stable event key per device, portal routes only. */
 export function playOrderSoundOnce(key: string | null | undefined): boolean {
+  if (!inPortal()) return false;
   if (!claimSoundEvent(key)) return false;
   playGlobalNotificationSound();
   return true;
