@@ -13,6 +13,7 @@
         "@capacitor/cli": "^8.0.2",
         "@capacitor/core": "^8.0.2",
         "@capacitor/geolocation": "^8.1.0",
+        "@capacitor/inappbrowser": "^4.0.3",
         "@capacitor/ios": "^8.0.2",
         "@capacitor/local-notifications": "^8.2.0",
         "@capacitor/push-notifications": "^8.0.1",
@@ -331,6 +332,8 @@
     "@capacitor/core": ["@capacitor/core@8.0.2", "", { "dependencies": { "tslib": "^2.1.0" } }, "sha512-EXZfxkL6GFJS2cb7TIBR7RiHA5iz6ufDcl1VmUpI2pga3lJ5Ck2+iqbx7N+osL3XYem9ad4XCidJEMm64DX6UQ=="],
 
     "@capacitor/geolocation": ["@capacitor/geolocation@8.1.0", "", { "dependencies": { "@capacitor/synapse": "^1.0.4" }, "peerDependencies": { "@capacitor/core": ">=8.0.0" } }, "sha512-dHeGuVlT3ELxxn8WaoRsGjfx8tmziaC0ZuaKhUBCoKFjOue4fAnmLczCMQsYW7OykgiyBh0pirNPwWZ0/LXB7Q=="],
+
+    "@capacitor/inappbrowser": ["@capacitor/inappbrowser@4.0.3", "https://europe-west1-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/@capacitor/inappbrowser/-/inappbrowser-4.0.3.tgz", { "peerDependencies": { "@capacitor/core": ">=8.0.0" } }, "sha512-Jnl6Ssp2QZByncO6QhDKzNpi3yeum1aSQM+70VMVh8TJ16HOwOrcTnf8E4+7FpT9ruSRGyhqQu1yBSrpl+wD1g=="],
 
     "@capacitor/ios": ["@capacitor/ios@8.0.2", "", { "peerDependencies": { "@capacitor/core": "^8.0.0" } }, "sha512-7EM7vBxXI3Ku49aYCJcS9su5Y3i6UmXpx7e0y+oQV9PzCnZ6l5B0ACJ+gXAU0bM3q7/f+kGBsOtXMid84rU6MQ=="],
 
