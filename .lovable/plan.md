@@ -1,70 +1,50 @@
-# iPhone sound-on-open audit and correction plan
+# Read-only diagnosis: order sound on every button press
 
-## Read-only findings
+## Confirmed root cause
 
-Nothing was edited, deployed, sent, or mutated.
+The affected installed clients are executing the **old global audio-unlock routine**, not the corrected production bundle currently returned to a clean browser.
 
-### Confirmed startup replay paths
+The obsolete routine registers capturing listeners on every `click`, `touchstart`, and `keydown`, then calls `play()` on `/sounds/new-order.mp3` after setting the media element volume to zero. iOS Safari/WKWebView does not reliably honor programmatic media-element volume, so the real order tone is audible. If that `play()` promise does not complete successfully, the `GT`/unlocked flag remains false and the listener is not removed, causing the sound on every subsequent button press. The Scan Food button is only the visible trigger; its handler does not contain notification-audio logic.
 
-The strongest code-level cause is **state-driven repeaters starting from existing records**, not realtime replay:
+## Evidence
 
-- **Admin:** `src/components/admin/AdminNotificationBell.tsx:40,78-100` initializes the previous count to zero, fetches existing pending orders on mount, and treats any pending order created in the prior five minutes as new. It immediately plays at lines 93–95, then the separate `newOrderCount > 0` effect plays again and repeats every 10 seconds at lines 56–76. Visibility resume re-fetches at lines 124–130. This can replay an order created before the app opened.
-- **Vendor Orders:** `src/pages/vendor/VendorOrders.tsx:371-380` starts the repeating order sound after the initial fetch whenever any existing pending/confirmed order is present. It does not require a post-readiness INSERT. Its page listener also starts another repeater on INSERT/payment transition. `VendorLayout` independently owns another 8-second repeater and listener (`src/components/vendor/VendorLayout.tsx:33-36,117-148`).
-- **Rider:** `src/components/rider/RiderLayout.tsx:68-94` sounds immediately and repeats whenever the initial secure offer fetch returns an existing offer. `RiderAvailableOrders.tsx:64-71` adds a second repeater from the same initial count. `RiderOrders.tsx:144-155` starts on any existing active order; on that page `RiderLayout` and `RiderFloatingWidget` can also be mounted.
+- **Current source is corrected:** `src/lib/globalAudio.ts:54-76` resumes a Web Audio context and starts a generated one-sample silent buffer. It never invokes `HTMLAudioElement.play()` to unlock.
+- **Current live network bundle is corrected:** `https://app.fastcalories.online/assets/index-kA6Ha7Pz.js` contains the same generated-silent-buffer implementation. Its SHA-256 is `b03d56bce275cb0136a2ce6fc091dd75cb65a0bfede5c3b708e2c02252b05585`.
+- **Clean-browser runtime is silent:** instrumenting `HTMLMediaElement.play()` and Web Audio on a harmless public Sign In click recorded only a 1-sample silent buffer and the silent keep-alive buffer. There was no media-element play of `new-order.mp3`.
+- **A stale packaged bundle contains the exact bug:** `android/app/src/main/assets/public/assets/index-5cYnoxRD.js` contains `new Audio('/sounds/new-order.mp3')`, `volume=0`, `play()`, then `pause()`, plus capturing global gesture listeners. `android/app/src/main/assets/public/index.html` points directly to that stale asset.
+- **The stale asset is not the current website asset:** requests for `index-5cYnoxRD.js` on the live domain return 404; the current page points to `index-kA6Ha7Pz.js`.
+- **Installed-web caching can retain the old execution context:** the app worker precaches hashed JavaScript and uses `skipWaiting`/`clientsClaim`, but an already open standalone PWA can continue running its loaded old bundle until fully terminated and restarted. Old worker caches can also serve the old shell while offline.
+- **The native shell has two possible paths:** its checked-in packaged web files are stale and buggy, while its packaged Capacitor configuration points to `https://app.fastcalories.online`. A build or fallback that uses embedded files runs the old routine; a remote-loaded session can retain the same stale worker/client state as the PWA.
+- **The camera path is unrelated:** `src/components/home/ScanFoodBanner.tsx:10-12` only opens the camera dialog; `CameraCalorieTracker.tsx:53-63` plays the camera `<video>`, not the order MP3.
+- **The repeating-sound hook is not the global click source in current source:** `src/hooks/useRepeatingNotificationSound.ts:73-80` calls the corrected silent `unlockAudio()`. Its real audio `playOnce()` is separate and only used by notification repeat flows.
 
-Production counts at audit time: no order created in the prior ten minutes, no live dispatch offer, no vendor pending/confirmed order, but three orders matched the rider page's broad "unactioned" statuses. This supports rider startup replay for a rider opening that page; it does not prove which account/device reported the symptom.
+## Why the previous deployment did not stop it
 
-### Confirmed iPhone-wide audio defect
+The source and newly published website were fixed, but the deployed update did not invalidate every already-running installed client, and the native packaged assets were not replaced by a new signed iPhone build. Therefore the user's PWA/WKWebView can continue executing the pre-fix global listener even though a fresh browser request receives corrected code.
 
-`src/lib/globalAudio.ts:53-84,111-118` installs document listeners for every click, touch, pointer, and key event. Each gesture calls `play()` on the real `new-order.mp3` after setting element volume to zero, then pauses it. iOS Safari/WKWebView does not reliably support programmatic media-element volume, so the first interaction after opening can audibly play the order tone. This code is global and therefore affects customer, vendor, rider, and admin pages in both the PWA and iPhone Capacitor shell. It is the only shared path that explains both PWA and native across every role; technically it fires on the first gesture, which can be perceived as app-open playback.
+## Affected scope
 
-`useRepeatingNotificationSound.unlock()` also plays the real order file, but only from the explicit Enable Sound button; it is not an automatic startup path.
+- A freshly opened ordinary browser session loading `index-kA6Ha7Pz.js`: not reproducible.
+- An installed PWA still running the pre-fix client/worker cache: affected.
+- A native build or fallback using stale packaged web assets: affected.
+- Any role is affected because the obsolete listener is global and loads before role-specific pages.
 
-### Push and service-worker findings
+## Narrow safe correction design
 
-- `public/sw-push.js:22-34` turns **every non-CALL web push** into `PLAY_NOTIFICATION_SOUND`; `src/App.tsx:181-188` then plays the order file. A chat/status/promo push can therefore sound like a new order while the PWA is open. It also uses the shared `default` notification tag with `renotify: true`, causing repeat OS alerts for unrelated pushes.
-- Notification click handlers only focus/navigate; they do not directly replay audio (`public/sw-push.js:47-68`, `src/hooks/useCapacitorPush.ts:102-113`).
-- Service-worker install/update has no sound call. Cached app-shell versions can retain an old bug, but update activation itself cannot generate the sound.
-- Realtime does not replay historical INSERT events on subscription. The false startup alarms come from initial query results feeding repeaters, not a realtime snapshot.
+1. Remove the global gesture listeners entirely. Unlock Web Audio only from the explicit Enable Sound control; legitimate notification playback remains event-gated.
+2. Keep generated silent Web Audio only; never create or play the order MP3 in any unlock path.
+3. Add a startup build assertion that fails if any generated Capacitor asset contains the legacy `volume=0` + order-audio `play()` signature.
+4. Publish a new hashed website bundle and worker version, then require the old worker/client to terminate before activation; provide an in-app update/reload path rather than relying on repeated manual opens.
+5. Run Capacitor sync and produce a new signed iOS build so embedded/fallback files contain the corrected bundle. Merely publishing the website cannot replace files packaged inside an installed native app.
+6. Verify on a clean PWA and the rebuilt iOS app by instrumenting media playback: generic buttons, Scan Food, focus/resume, and worker update must produce zero `new-order.mp3` play calls; a genuine keyed order event must still play once.
 
-### Listener duplication
+## Required tests
 
-- `useCapacitorPush()` is mounted globally through app startup and again on Home or every VendorLayout. It adds registration/foreground/action listeners without removing them on cleanup (`src/hooks/useCapacitorPush.ts`). Remounts can accumulate native listeners. The foreground listener currently only logs, so this does not itself play the sound, but it can duplicate token writes/actions.
-- Rider `RiderFloatingWidget` listens to all `dispatch_offers` INSERTs without a rider filter and plays immediately (`src/components/rider/RiderFloatingWidget.tsx:35-59`). The same page also uses the secure shared offer store, allowing duplicate or irrelevant rider sounds.
-- Vendor Layout + Vendor Orders/Dashboard and Rider Layout + page/widget each own independent sound sources. A single event can start multiple intervals.
-- The global service-worker message listener is module-level and added once per loaded page; no notification-history rows are replayed.
+- Generic `click`, `touchstart`, `pointerdown`, and `keydown` never invoke order-media playback.
+- Scan Food opens the camera without order audio.
+- Installed-app update and focus/resume remain silent.
+- Generated web and Capacitor bundles contain no legacy muted-media unlock signature.
+- Explicit Enable Sound silently resumes Web Audio.
+- A genuine event-keyed order/offer alert still plays once and duplicate delivery remains silent.
 
-### Push-subscription data
-
-Production has 55 subscription rows for 44 users: 54 FCM and 1 web push. Six users have more than one FCM row; two rows identify iPhone user agents. Those rows may represent valid multiple devices or stale tokens. They can duplicate OS deliveries but do not explain deterministic in-app playback on every open. No safe send-event history was found to prove a duplicate delivery for this report.
-
-## Affected audience
-
-- **All iPhone roles:** global real-file audio unlock risk.
-- **Admin:** existing recent pending order replay plus broad INSERT alerting.
-- **Vendor:** existing pending/confirmed order replay and overlapping layout/page listeners.
-- **Rider:** existing offers/active orders and overlapping/unfiltered listeners.
-- **Customer PWA:** generic non-order push mapped to order sound; no customer order-query startup repeater was found.
-
-## Minimal safe implementation
-
-1. Replace global media-file unlocking with a one-time Web Audio resume plus generated silent buffer. Never call `new-order.mp3.play()` from generic gestures; retain best-effort resume on visibility without playing audio.
-2. Introduce one event-keyed order-sound gate (`role:eventType:order/offer ID`) with in-memory and short session/device dedupe. All legitimate sound callers use it.
-3. Add listener-readiness baselines: initial fetch only establishes current IDs/counts and never rings. Ring only for a newly observed actionable ID or an explicit transition into actionable/paid state after readiness.
-4. Vendor: one authoritative listener per mounted portal; paid/actionable, non-POS, selected-outlet events only. Existing pending orders remain visible but silent on open. Remove page/layout duplicate repeaters.
-5. Rider: use only `get_my_rider_offers` through the shared store; remove the unfiltered FloatingWidget sound. Mark initial offer IDs as seen; only newly added eligible IDs ring. Existing assigned work is visible but silent on open.
-6. Admin: seed the baseline from the first fetch; do not compare it with zero. Ring only on a post-readiness actionable event and dedupe by order ID.
-7. PWA push: post an in-app sound message only for explicit routed order/offer event types with an event/order ID. Generic pushes still show their normal notification without the order audio; `renotify` only where intentional.
-8. Make native push registration process-wide and return/remove all Capacitor listener handles on cleanup. Keep iOS background notification presentation and navigation behavior unchanged.
-9. Treat duplicate FCM pruning as a separate, conservative cleanup only after identifying device/token identity; do not delete subscriptions solely because one user has several devices.
-
-## Required mock-only tests
-
-- Opening/resuming each customer/vendor/rider/admin route with existing records is silent.
-- First genuine post-readiness paid vendor order, admin actionable order, or eligible rider offer rings once.
-- Same event received by realtime + push + refetch + duplicate component mounts still rings once.
-- Unpaid, POS, wrong-outlet, wrong-rider, expired and historical records are silent.
-- Generic chat/status/promo push never maps to the order sound; valid order push keeps background notification behavior.
-- Generic iPhone tap/touch unlock never invokes the order audio file.
-- Capacitor listeners are registered once and removed on cleanup; notification tap only navigates.
-- Service-worker update and visibility/focus refresh do not replay old events.
+No code, database, configuration, deployment, push, order, or notification was changed during this diagnosis.
