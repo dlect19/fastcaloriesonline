@@ -1,3 +1,4 @@
+import { claimSoundEvent } from './orderSoundGate';
 // Global audio manager for push notification sounds
 // Uses Web Audio API as primary (works reliably in background tabs once unlocked)
 // HTMLAudioElement as fallback for iOS / older browsers.
@@ -50,37 +51,29 @@ async function decodeBuffer(): Promise<void> {
   return decodingPromise;
 }
 
-// Unlock both APIs on user interaction. Re-runs on every gesture so the
-// AudioContext is resumed after any browser auto-suspend.
-async function unlockAudio() {
-  // 1. Unlock HTMLAudioElement (silent play/pause)
-  try {
-    const a = getHtmlAudio();
-    const prevVol = a.volume;
-    a.volume = 0;
-    await a.play();
-    a.pause();
-    a.currentTime = 0;
-    a.volume = prevVol || 1.0;
-  } catch {
-    // ignore
-  }
-
-  // 2. Resume / create AudioContext
+// Unlock audio on user interaction WITHOUT ever playing the real order sound.
+// iOS Safari/WKWebView ignores HTMLAudioElement.volume, so "silent" play of
+// new-order.mp3 is audible there. We only resume the Web Audio context and
+// play a generated silent buffer, which unlocks output on every platform.
+export async function unlockAudio(): Promise<boolean> {
   const ctx = ensureAudioContext();
-  if (ctx) {
-    if (ctx.state === 'suspended') {
-      try { await ctx.resume(); } catch { /* ignore */ }
-    }
-    // Decode the sound buffer once the context is alive
-    decodeBuffer();
-  }
-
+  if (!ctx) return false;
+  try {
+    if (ctx.state === 'suspended') await ctx.resume();
+  } catch { /* ignore */ }
+  try {
+    const silent = ctx.createBuffer(1, 1, ctx.sampleRate);
+    const src = ctx.createBufferSource();
+    src.buffer = silent;
+    src.connect(ctx.destination);
+    src.start(0);
+  } catch { /* ignore */ }
+  decodeBuffer();
   if (!isUnlocked) {
     isUnlocked = true;
-    console.log('[GlobalAudio] Audio unlocked via user interaction');
     startKeepAlive();
   }
+  return ctx.state === 'running' || isUnlocked;
 }
 
 // ----- Keep-alive: a near-silent looping Web Audio source keeps the tab
@@ -108,16 +101,20 @@ function startKeepAlive() {
   }
 }
 
-// Listen for user interactions — keep listening (don't remove) so we can
-// resume the AudioContext if the browser ever suspends it.
+// One-time gesture unlock; afterwards only resume a suspended context.
 if (typeof window !== 'undefined') {
   const events = ['click', 'touchstart', 'keydown', 'pointerdown'];
-  const handler = () => { unlockAudio(); };
+  const handler = () => {
+    if (isUnlocked && audioCtx?.state !== 'suspended') {
+      events.forEach(e => document.removeEventListener(e, handler, { capture: true } as any));
+      return;
+    }
+    unlockAudio();
+  };
   events.forEach(e =>
     document.addEventListener(e, handler, { capture: true, passive: true })
   );
 
-  // When tab becomes visible, resume the AudioContext (it can suspend in bg)
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && audioCtx?.state === 'suspended') {
       audioCtx.resume().catch(() => {});
@@ -166,6 +163,16 @@ export function playGlobalNotificationSound() {
   if (typeof navigator !== 'undefined' && navigator.vibrate) {
     navigator.vibrate([200, 100, 200, 100, 200]);
   }
+}
+
+/**
+ * Play the order sound only if this event key has never been claimed on this
+ * device. Returns true when it played.
+ */
+export function playOrderSoundOnce(key: string | null | undefined): boolean {
+  if (!claimSoundEvent(key)) return false;
+  playGlobalNotificationSound();
+  return true;
 }
 
 export function isAudioUnlocked() {
