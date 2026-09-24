@@ -1,3 +1,4 @@
+import { isStaffPortalPath } from '@/lib/portalScope';
 import { useRef, useState, useEffect, useCallback } from 'react';
 
 export function useVendorNotificationSound() {
@@ -7,10 +8,6 @@ export function useVendorNotificationSound() {
   });
 
   useEffect(() => {
-    // Preload the audio
-    audioRef.current = new Audio('/sounds/new-order.mp3');
-    audioRef.current.load();
-    
     return () => {
       if (audioRef.current) {
         audioRef.current.pause();
@@ -24,7 +21,8 @@ export function useVendorNotificationSound() {
   }, [soundEnabled]);
 
   const playNotification = useCallback(() => {
-    if (soundEnabled && audioRef.current) {
+    if (soundEnabled && isStaffPortalPath(window.location.pathname)) {
+      if (!audioRef.current) audioRef.current = new Audio(['/sounds/', 'new-order', '.mp3'].join(''));
       audioRef.current.currentTime = 0;
       audioRef.current.play().catch((err) => {
         console.error('Failed to play notification sound:', err);

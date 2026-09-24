@@ -1,5 +1,6 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { unlockAudio } from '@/lib/globalAudio';
+import { isStaffPortalPath } from '@/lib/portalScope';
 
 interface UseRepeatingNotificationSoundOptions {
   intervalMs?: number;
@@ -29,11 +30,6 @@ export function useRepeatingNotificationSound(options: UseRepeatingNotificationS
   const [isBlocked, setIsBlocked] = useState(false);
 
   useEffect(() => {
-    // Preload the audio
-    const audio = new Audio('/sounds/new-order.mp3');
-    audio.load();
-    audioRef.current = audio;
-    
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
@@ -51,7 +47,9 @@ export function useRepeatingNotificationSound(options: UseRepeatingNotificationS
   }, [soundEnabled, storageKey]);
 
   const playOnce = useCallback(() => {
-    if (!audioRef.current) return;
+    // Order audio only inside staff portals; created lazily on first real alert.
+    if (!isStaffPortalPath(window.location.pathname)) return;
+    if (!audioRef.current) audioRef.current = new Audio(['/sounds/', 'new-order', '.mp3'].join(''));
     
     audioRef.current.currentTime = 0;
     audioRef.current.play()

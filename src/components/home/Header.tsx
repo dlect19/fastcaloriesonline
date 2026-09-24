@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Bell, MapPin, Search, Camera, Heart } from 'lucide-react';
+import { MapPin, Search, Camera, Heart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { CameraActionSheet } from './CameraActionSheet';
@@ -51,11 +51,6 @@ export function Header({ userName = 'Guest', address = 'Set your location', onSe
                 </p>
               </div>
             </button>
-
-            <Button variant="ghost" size="icon" className="relative">
-              <Bell className="w-5 h-5" />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-accent rounded-full" />
-            </Button>
           </div>
 
           {/* Search bar with Camera & Favorites */}
