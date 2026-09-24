@@ -18,6 +18,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Package, MapPin, Phone, Clock, Loader2, ShieldCheck, RefreshCw, Lock, MessageSquare } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useRepeatingNotificationSound } from '@/hooks/useRepeatingNotificationSound';
+import { claimSoundEvent, soundKey } from '@/lib/orderSoundGate';
 import { useRiderRestrictions } from '@/hooks/useRiderRestrictions';
 import { format } from 'date-fns';
 import { CommButtons } from '@/components/call/CommButtons';
@@ -92,7 +93,7 @@ export default function RiderOrders() {
           if (payload.eventType === 'UPDATE' && newRow?.rider_id === userId) {
             const wasJustAssigned = oldRow?.rider_id !== userId;
             if (wasJustAssigned) {
-              playOnce();
+              if (claimSoundEvent(soundKey('rider', 'assigned', newRow.id))) playOnce();
               toast({
                 title: '🚚 New Delivery!',
                 description: `Order #${newRow.order_number} has been assigned to you.`,
@@ -140,19 +141,6 @@ export default function RiderOrders() {
     };
   }, [userId, playOnce, stopRepeating, toast]);
 
-
-  // Re-evaluate sound whenever active orders change
-  useEffect(() => {
-    if (loading) return;
-    const hasUnactioned = activeOrders.some(o => 
-      ['assigned', 'searching_for_rider', 'ready_for_pickup', 'confirmed'].includes(o.status)
-    );
-    if (hasUnactioned) {
-      startRepeating();
-    } else {
-      stopRepeating();
-    }
-  }, [activeOrders, loading]);
 
   const checkAuth = async () => {
     const { data: { user } } = await supabase.auth.getUser();

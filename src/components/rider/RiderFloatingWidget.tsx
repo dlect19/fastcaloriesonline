@@ -43,12 +43,9 @@ export function RiderFloatingWidget({ isOnline, onToggleOnline }: RiderFloatingW
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'dispatch_offers' },
-        (payload) => {
+        () => {
+          // Display refresh only — offer sound is owned by RiderLayout.
           fetchDispatchOffers();
-          // Play sound when a new dispatch offer arrives
-          if (payload.eventType === 'INSERT') {
-            playGlobalNotificationSound();
-          }
         }
       )
       .subscribe();

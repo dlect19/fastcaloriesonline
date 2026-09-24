@@ -61,14 +61,7 @@ export default function RiderAvailableOrders() {
     checkAuth();
   }, []);
 
-  // Start notification sound when there are pending offers
-  useEffect(() => {
-    if (pendingCount > 0 && isOnline && !loading) {
-      startRepeating();
-    } else {
-      stopRepeating();
-    }
-  }, [pendingCount, isOnline, loading]);
+  // Offer sound is owned by RiderLayout (secure offers, deduped per offer).
 
   // Fetch affiliated vendor name
   useEffect(() => {
