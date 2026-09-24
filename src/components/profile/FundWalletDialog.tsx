@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Loader2, Wallet, CreditCard } from 'lucide-react';
 import { useCustomerWallet } from '@/hooks/useCustomerWallet';
 import { useToast } from '@/hooks/use-toast';
-import { openPaymentUrl } from '@/lib/openPaymentUrl';
+import { openPaymentUrl, paymentOpensInApp } from '@/lib/openPaymentUrl';
 
 interface FundWalletDialogProps {
   open: boolean;
@@ -42,7 +42,10 @@ export function FundWalletDialog({ open, onOpenChange, callbackUrl }: FundWallet
       const result = await initializeFunding(amount, url);
 
       if (result.authorization_url) {
-        await openPaymentUrl(result.authorization_url);
+        await openPaymentUrl(result.authorization_url, {
+          returnPath: '/profile/wallet',
+          onCancelled: () => toast({ title: 'Payment cancelled', description: 'No money was taken from your account.' }),
+        });
       }
     } catch (error) {
       console.error('Error initializing funding:', error);
@@ -112,7 +115,9 @@ export function FundWalletDialog({ open, onOpenChange, callbackUrl }: FundWallet
                 <span className="font-semibold">₦{Number(amount).toLocaleString()}</span>
               </div>
               <p className="text-xs text-muted-foreground">
-                You'll be redirected to Paystack to complete the payment
+                {paymentOpensInApp()
+                  ? 'Payment opens securely inside FastCalories via Paystack'
+                  : "You'll be redirected to Paystack to complete the payment"}
               </p>
             </div>
           )}

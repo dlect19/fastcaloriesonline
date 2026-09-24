@@ -86,8 +86,8 @@ async function openNative(url: string, opts: OpenPaymentOptions): Promise<void> 
       showToolbar: true,
       showURL: false,
       showNavigationButtons: false,
+      closeButtonText: 'Cancel',
       android: { ...DefaultWebViewOptions.android, hardwareBack: true },
-      iOS: { ...DefaultWebViewOptions.iOS, closeButtonText: 2 /* Cancel */ },
     },
   });
 }

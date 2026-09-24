@@ -95,7 +95,8 @@ export default function EventDetail() {
       }
       // Redirect to Paystack hosted checkout
       if (data?.authorization_url) {
-        window.location.href = data.authorization_url;
+        const { openPaymentUrl } = await import('@/lib/openPaymentUrl');
+        await openPaymentUrl(data.authorization_url, { returnPath: '/my-events' });
       }
     } finally {
       setSubmitting(false);

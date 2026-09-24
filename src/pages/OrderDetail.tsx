@@ -228,7 +228,10 @@ export default function OrderDetail() {
       }
 
       // Open Paystack checkout (in-app browser on native, redirect on web)
-      await openPaymentUrl(paymentData.authorization_url);
+      await openPaymentUrl(paymentData.authorization_url, {
+        returnPath: window.location.pathname,
+        onCancelled: () => toast({ title: 'Payment not completed', description: 'Your order is still awaiting payment.' }),
+      });
     } catch (error: any) {
       console.error('Payment error:', error);
       toast({
