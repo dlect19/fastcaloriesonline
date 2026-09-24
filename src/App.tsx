@@ -169,7 +169,7 @@ import MyVouchers from "./pages/vouchers/MyVouchers";
 import AdminVoucherHub from "./pages/admin/AdminVoucherHub";
 import VoucherStorefront from "./pages/public/VoucherStorefront";
 import VoucherStorefrontSuccess from "./pages/public/VoucherStorefrontSuccess";
-import { playGlobalNotificationSound } from '@/lib/globalAudio';
+import { playOrderSoundOnce } from '@/lib/globalAudio';
 import { useFcmNotifications } from '@/hooks/useFcmNotifications';
 import { usePortalMemory } from '@/hooks/usePortalMemory';
 import { useAppTheme } from '@/hooks/useAppTheme';
@@ -181,9 +181,12 @@ const queryClient = new QueryClient();
 // Global listener for push notification sounds from service worker
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker?.addEventListener('message', (event: MessageEvent) => {
-    if (event.data?.type === 'PLAY_NOTIFICATION_SOUND') {
-      playGlobalNotificationSound();
-    }
+    if (event.data?.type !== 'PLAY_NOTIFICATION_SOUND') return;
+    const d = event.data?.data;
+    if (!d || !ORDER_SOUND_EVENT_TYPES.has(d.type)) return;
+    const role = d.type === 'NEW_ORDER' ? (d.role === 'admin' ? 'admin' : 'vendor') : 'rider';
+    const eventType = d.type === 'RIDER_ASSIGNED' ? 'assigned' : 'actionable';
+    playOrderSoundOnce(soundKey(role, eventType, event.data?.eventId || pushEventId(d)));
   });
 }
 
