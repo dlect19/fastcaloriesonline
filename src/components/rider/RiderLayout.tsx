@@ -9,6 +9,7 @@ import { useRiderNativeService } from '@/hooks/useRiderNativeService';
 import { useRiderLocation } from '@/hooks/useRiderLocation';
 import { useEnsureLocationPermissions } from '@/hooks/useEnsureLocationPermissions';
 import { useDispatchOffers } from '@/hooks/useDispatchOffers';
+import { useFreshActionable } from '@/hooks/useFreshActionable';
 
 
 interface RiderLayoutProps {
@@ -69,29 +70,32 @@ export function RiderLayout({ children, isOnline, onToggleOnline, canViewEarning
     setPendingOfferCount(isOnline ? offers.length : 0);
   }, [offers.length, isOnline]);
 
-  // Repeating notification sound when there are pending offers (works on ALL rider pages)
+  // Single authoritative rider offer sound. Offers come only from the secure
+  // rider-specific lookup; offers already present on open are a silent
+  // baseline, and each new offer rings at most once per device.
+  const { freshCount } = useFreshActionable(
+    riderId && isOnline ? `rider-offers:${riderId}` : null,
+    'rider',
+    riderId && isOnline ? offers.map((o) => o.id) : null,
+  );
+  const prevFreshRef = useRef(0);
   useEffect(() => {
-    if (pendingOfferCount > 0 && isOnline) {
-      // Play immediately
-      playGlobalNotificationSound();
-      // Then repeat every 10 seconds
-      if (repeatIntervalRef.current) clearInterval(repeatIntervalRef.current);
-      repeatIntervalRef.current = setInterval(() => {
-        playGlobalNotificationSound();
-      }, 10000);
-    } else {
-      if (repeatIntervalRef.current) {
-        clearInterval(repeatIntervalRef.current);
-        repeatIntervalRef.current = null;
+    if (freshCount > prevFreshRef.current) playGlobalNotificationSound();
+    prevFreshRef.current = freshCount;
+    if (freshCount > 0 && isOnline) {
+      if (!repeatIntervalRef.current) {
+        repeatIntervalRef.current = setInterval(() => {
+          playGlobalNotificationSound();
+        }, 10000);
       }
+    } else if (repeatIntervalRef.current) {
+      clearInterval(repeatIntervalRef.current);
+      repeatIntervalRef.current = null;
     }
-    return () => {
-      if (repeatIntervalRef.current) {
-        clearInterval(repeatIntervalRef.current);
-        repeatIntervalRef.current = null;
-      }
-    };
-  }, [pendingOfferCount, isOnline]);
+  }, [freshCount, isOnline]);
+  useEffect(() => () => {
+    if (repeatIntervalRef.current) clearInterval(repeatIntervalRef.current);
+  }, []);
 
   // Native heads-up notification, once per verified offer (no duplicates).
   useEffect(() => {

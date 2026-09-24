@@ -1,4 +1,5 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
+import { unlockAudio } from '@/lib/globalAudio';
 
 interface UseRepeatingNotificationSoundOptions {
   intervalMs?: number;
@@ -70,11 +71,9 @@ export function useRepeatingNotificationSound(options: UseRepeatingNotificationS
   }, []);
 
   const unlock = useCallback(async (): Promise<boolean> => {
-    if (!audioRef.current) return false;
-    
     try {
-      audioRef.current.currentTime = 0;
-      await audioRef.current.play();
+      // Silent unlock — never plays the order file.
+      await unlockAudio();
       setIsBlocked(false);
       setSoundEnabledState(true);
       localStorage.setItem(storageKey, 'true');

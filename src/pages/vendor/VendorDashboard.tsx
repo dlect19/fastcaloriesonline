@@ -148,7 +148,7 @@ export default function VendorDashboard() {
           filter: `vendor_id=eq.${vendor.id}`,
         },
         () => {
-          playNotification();
+          // Sound is owned by VendorLayout (deduped, paid/actionable only).
           toast({
             title: '🔔 New Order!',
             description: 'You have a new order to process',

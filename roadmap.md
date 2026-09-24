@@ -112,3 +112,5 @@
 - Migration 0035: dropped that constraint, added partial unique index `dispatch_requests_one_live_per_order` (pending/accepted only) + `(order_id, created_at DESC)` index. History preserved.
 - `dispatch-order` now returns an "already running" 200 for a live-round conflict instead of a 500; other 23505s still fail.
 - Tests: src/test/dispatch-round-uniqueness.test.ts (8). Suite 428 passing; typecheck/Deno/build clean; function deployed.
+
+- [x] Startup order-sound fix: silent unlock, event gate/dedupe, silent baselines, consolidated listeners, SW explicit events, Capacitor cleanup, tests, publish
