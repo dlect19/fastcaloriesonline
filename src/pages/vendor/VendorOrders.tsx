@@ -305,10 +305,7 @@ export default function VendorOrders() {
           if (orderOutletId !== selectedOutletId) return;
           
           if (payload.eventType === 'INSERT') {
-            // Play sound for each new order
-            playOnce();
-            // Start repeating for pending orders
-            startRepeating();
+            // Sound is owned by VendorLayout (deduped, paid/actionable only).
             toast({
               title: '🔔 New Order!',
               description: 'You have a new order to process.',
@@ -317,15 +314,12 @@ export default function VendorOrders() {
           
           // When ANY order status changes, stop sound and re-evaluate after data refresh
           if (payload.eventType === 'UPDATE' && newOrder.status !== oldOrder.status) {
-            stopRepeating();
             const wasReleasedFromAssistedPayment =
               (newOrder as any).channel === 'assisted' &&
               (newOrder as any).payment_status === 'paid' &&
               (oldOrder as any).payment_status !== 'paid';
 
             if (wasReleasedFromAssistedPayment || (newOrder.status === 'confirmed' && oldOrder.status === 'pending')) {
-              playOnce();
-              startRepeating();
               toast({
                 title: '🔔 New Confirmed Order!',
                 description: (newOrder as any).delivery_instructions || 'A paid order is ready to process.',
@@ -367,17 +361,6 @@ export default function VendorOrders() {
       supabase.removeChannel(channel);
     };
   }, [vendor, selectedOutletId]);
-
-  // Re-evaluate sound whenever orders change: play only if pending orders exist
-  useEffect(() => {
-    if (loading) return;
-    const hasPending = orders.some(o => ['pending', 'confirmed'].includes(o.status));
-    if (hasPending) {
-      startRepeating();
-    } else {
-      stopRepeating();
-    }
-  }, [orders, loading]);
 
   const fetchData = async () => {
     if (!selectedOutletId) {

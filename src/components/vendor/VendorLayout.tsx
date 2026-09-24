@@ -9,6 +9,8 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useRepeatingNotificationSound } from '@/hooks/useRepeatingNotificationSound';
 import { SoundEnableBanner } from '@/components/shared/SoundEnableBanner';
 import { useCapacitorPush } from '@/hooks/useCapacitorPush';
+import { useFreshActionable } from '@/hooks/useFreshActionable';
+import { claimSoundEvent, soundKey } from '@/lib/orderSoundGate';
 import { IncomingOrderCall } from '@/components/vendor/IncomingOrderCall';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -58,7 +60,7 @@ function VendorLayoutContent({ children, vendorName, vendorId, permissions, onOu
               orderTotal: data.order_total,
               orderId: data.order_id,
             });
-            startRepeating();
+            if (claimSoundEvent(soundKey('vendor', 'actionable', data.order_id))) startRepeating();
           }
         });
         nativeCleanup = () => listener.remove();
@@ -79,7 +81,7 @@ function VendorLayoutContent({ children, vendorName, vendorId, permissions, onOu
           orderTotal: d?.order_total,
           orderId: d?.order_id,
         });
-        startRepeating();
+        if (claimSoundEvent(soundKey('vendor', 'actionable', d?.order_id))) startRepeating();
       }
     };
     navigator.serviceWorker?.addEventListener('message', handleSwMessage);
@@ -109,43 +111,50 @@ function VendorLayoutContent({ children, vendorName, vendorId, permissions, onOu
     resolve();
   }, [vendorId]);
 
-  // Track previous order count to detect new orders
-  const prevOrderCountRef = useRef<number | null>(null);
-  const isPlayingRef = useRef(isPlaying);
-  useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
+  // Single authoritative vendor order-sound source. Existing actionable
+  // orders on open are a silent baseline; only newly actionable (paid or cash,
+  // non-POS, this outlet) orders ring, once per order per device.
+  const [actionableIds, setActionableIds] = useState<string[] | null>(null);
+  const outletScope = resolvedVendorId && selectedOutlet?.id ? `vendor:${resolvedVendorId}:${selectedOutlet.id}` : null;
+  const { freshCount } = useFreshActionable(outletScope, 'vendor', actionableIds);
 
   useEffect(() => {
+    setActionableIds(null);
     if (!resolvedVendorId || !selectedOutlet?.id) { setNewOrderCount(0); stopRepeating(); return; }
     const outletId = selectedOutlet.id;
-    // Reset previous count when outlet changes so we don't trigger false alerts
-    prevOrderCountRef.current = null;
-    const fetchCount = async () => {
-      const { count } = await supabase.from('orders').select('*', { count: 'exact', head: true })
-        .eq('vendor_id', resolvedVendorId).eq('outlet_id', outletId).in('status', ['pending', 'confirmed']);
-      if (count !== null) {
-        // Start repeating sound when new order arrives
-        if (prevOrderCountRef.current !== null && count > prevOrderCountRef.current) {
-          startRepeating();
-          toast.success('🔔 New Order!', {
-            description: 'A new paid order has come in. Check your orders page.',
-            duration: 8000,
-          });
-        }
-        // Stop sound when orders are handled (count decreases or reaches 0)
-        if (prevOrderCountRef.current !== null && count < prevOrderCountRef.current) {
-          stopRepeating();
-        }
-        if (count === 0 && isPlayingRef.current) {
-          stopRepeating();
-        }
-        prevOrderCountRef.current = count;
-        setNewOrderCount(count);
-      }
+    let cancelled = false;
+    const fetchActionable = async () => {
+      const { data, error } = await supabase.from('orders')
+        .select('id, status, channel, payment_status, payment_method')
+        .eq('vendor_id', resolvedVendorId).eq('outlet_id', outletId).in('status', ['pending', 'confirmed'])
+        .limit(200);
+      if (cancelled || error) return;
+      const rows = data || [];
+      const ids = rows.filter((o: any) => (o.channel || 'online') !== 'pos'
+        && (o.payment_status === 'paid' || o.payment_method === 'cash')).map((o: any) => o.id);
+      setNewOrderCount(ids.length);
+      setActionableIds(ids);
     };
-    fetchCount();
-    const channel = supabase.channel(`vendor-layout-orders-${outletId}`).on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `outlet_id=eq.${outletId}` }, () => fetchCount()).subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [resolvedVendorId, selectedOutlet?.id, startRepeating, stopRepeating]);
+    fetchActionable();
+    const channel = supabase.channel(`vendor-layout-orders-${outletId}`).on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `outlet_id=eq.${outletId}` }, () => fetchActionable()).subscribe();
+    const onVisible = () => { if (document.visibilityState === 'visible') fetchActionable(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { cancelled = true; supabase.removeChannel(channel); document.removeEventListener('visibilitychange', onVisible); };
+  }, [resolvedVendorId, selectedOutlet?.id, stopRepeating]);
+
+  const prevFreshRef = useRef(0);
+  useEffect(() => {
+    if (freshCount > prevFreshRef.current) {
+      startRepeating();
+      toast.success('🔔 New Order!', {
+        description: 'A new paid order has come in. Check your orders page.',
+        duration: 8000,
+      });
+    } else if (freshCount === 0 && !callData) {
+      stopRepeating();
+    }
+    prevFreshRef.current = freshCount;
+  }, [freshCount, callData, startRepeating, stopRepeating]);
 
   return (
     <div className="min-h-screen bg-background">
