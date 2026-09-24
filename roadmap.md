@@ -114,3 +114,5 @@
 - Tests: src/test/dispatch-round-uniqueness.test.ts (8). Suite 428 passing; typecheck/Deno/build clean; function deployed.
 
 - [x] Startup order-sound fix: silent unlock, event gate/dedupe, silent baselines, consolidated listeners, SW explicit events, Capacitor cleanup, tests, publish
+
+- [x] Customer/staff order-sound separation: bell removed from customer home, no global gesture audio, portal-only lazy order audio, PWA one-time reload, bundle guard, native web assets refreshed, published (index-B4Z4_zkB.js)
