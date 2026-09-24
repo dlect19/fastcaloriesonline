@@ -6,11 +6,52 @@ import { supabase } from '@/integrations/supabase/client';
  * Creates notification channels with custom sound for vendor/rider order alerts.
  * Uses dynamic imports so it doesn't break on web.
  */
+type ListenerHandle = { remove: () => Promise<void> | void };
+
+// Process-wide registration: many screens call this hook, but native listeners
+// are added once and removed when the last consumer unmounts.
+let consumers = 0;
+let handles: ListenerHandle[] = [];
+let setupPromise: Promise<void> | null = null;
+let currentToken: string | null = null;
+const tokenSubscribers = new Set<(t: string | null) => void>();
+
+async function teardown() {
+  const toRemove = handles;
+  handles = [];
+  setupPromise = null;
+  await Promise.allSettled(toRemove.map((h) => Promise.resolve(h.remove())));
+}
+
+/** Test helper. */
+export function __getCapacitorPushState() {
+  return { consumers, handleCount: handles.length };
+}
+
 export function useCapacitorPush() {
-  const [token, setToken] = useState<string | null>(null);
+  const [token, setToken] = useState<string | null>(currentToken);
 
   useEffect(() => {
-    const setup = async () => {
+    consumers += 1;
+    tokenSubscribers.add(setToken);
+    if (!setupPromise) setupPromise = setup();
+    return () => {
+      consumers -= 1;
+      tokenSubscribers.delete(setToken);
+      if (consumers <= 0) {
+        consumers = 0;
+        const pending = setupPromise;
+        Promise.resolve(pending).finally(() => { if (consumers === 0) teardown(); });
+      }
+    };
+  }, []);
+
+  return { token };
+}
+
+async function setup(): Promise<void> {
+  {
+    {
       try {
         const { Capacitor } = await import('@capacitor/core');
         if (!Capacitor.isNativePlatform()) return;
@@ -62,13 +103,12 @@ export function useCapacitorPush() {
           return;
         }
 
-        // Register with FCM
-        await PushNotifications.register();
+        // Add listeners before registering so the token event is not missed.
 
         // Handle token registration
-        PushNotifications.addListener('registration', async (tokenData) => {
-          console.log('Push token:', tokenData.value);
-          setToken(tokenData.value);
+        handles.push(await PushNotifications.addListener('registration', async (tokenData) => {
+          currentToken = tokenData.value;
+          tokenSubscribers.forEach((fn) => fn(tokenData.value));
 
           // Save token to database
           const { data: { user } } = await supabase.auth.getUser();
@@ -87,19 +127,18 @@ export function useCapacitorPush() {
                 onConflict: 'user_id,endpoint,subscription_type',
               });
           }
-        });
+        }));
 
-        PushNotifications.addListener('registrationError', (error) => {
+        handles.push(await PushNotifications.addListener('registrationError', (error) => {
           console.error('Push registration error:', error);
-        });
+        }));
 
-        // Handle foreground notifications
-        PushNotifications.addListener('pushNotificationReceived', (notification) => {
-          console.log('Push received in foreground:', notification);
-        });
+        // Foreground receipt never plays audio here; order sound is owned by
+        // the deduped portal listeners.
+        handles.push(await PushNotifications.addListener('pushNotificationReceived', () => {}));
 
-        // Handle notification tap / action button press
-        PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
+        // Tap / action: navigation only, never audio.
+        handles.push(await PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
           const data = action.notification.data;
           console.log('Push action performed:', data);
           if (data?.type === 'CALL' && data?.callId) {
@@ -109,14 +148,12 @@ export function useCapacitorPush() {
           } else if (data?.url) {
             window.location.href = data.url;
           }
-        });
+        }));
+
+        await PushNotifications.register();
       } catch {
         // Not in Capacitor environment
       }
-    };
-
-    setup();
-  }, []);
-
-  return { token };
+  }
+  }
 }

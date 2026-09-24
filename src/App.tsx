@@ -170,6 +170,7 @@ import AdminVoucherHub from "./pages/admin/AdminVoucherHub";
 import VoucherStorefront from "./pages/public/VoucherStorefront";
 import VoucherStorefrontSuccess from "./pages/public/VoucherStorefrontSuccess";
 import { playOrderSoundOnce } from '@/lib/globalAudio';
+import { ORDER_SOUND_EVENT_TYPES, pushEventId, soundKey } from '@/lib/orderSoundGate';
 import { useFcmNotifications } from '@/hooks/useFcmNotifications';
 import { usePortalMemory } from '@/hooks/usePortalMemory';
 import { useAppTheme } from '@/hooks/useAppTheme';
