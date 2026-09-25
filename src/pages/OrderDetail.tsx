@@ -17,7 +17,7 @@ import { ArrowLeft, Package, Check, Truck, MapPin, Phone, Loader2, Store, Clock,
 import { format, differenceInMinutes } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import { openPaymentUrl } from '@/lib/openPaymentUrl';
+import { openPaymentUrl, paymentCallbackUrl } from '@/lib/openPaymentUrl';
 
 const DELIVERY_ORDER_STATUSES = [
   { key: 'pending', label: 'Order Placed', icon: Package },
@@ -215,7 +215,7 @@ export default function OrderDetail() {
     
     setProcessingPayment(true);
     try {
-      const callbackUrl = `${window.location.origin}/payment-callback`;
+      const callbackUrl = paymentCallbackUrl('/payment-callback');
       const { data: paymentData, error: paymentError } = await supabase.functions.invoke(
         'paystack-initialize-payment',
         {

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { paymentCallbackUrl } from '@/lib/openPaymentUrl';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Calendar, MapPin, Users, Minus, Plus, Loader2, Wallet, CreditCard } from 'lucide-react';
 import { useEvent } from '@/hooks/useEvents';
@@ -77,7 +78,7 @@ export default function EventDetail() {
         body: {
           event_id: id,
           items: items.map(([ticket_type_id, quantity]) => ({ ticket_type_id, quantity })),
-          callbackUrl: `${window.location.origin}/my-events`,
+          callbackUrl: paymentCallbackUrl('/my-events'),
         },
       });
       let errPayload: any = data?.error ? data : null;
