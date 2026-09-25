@@ -44,7 +44,7 @@ export function FundWalletDialog({ open, onOpenChange, callbackUrl }: FundWallet
       if (result.authorization_url) {
         await openPaymentUrl(result.authorization_url, {
           returnPath: '/profile/wallet',
-          onCancelled: () => toast({ title: 'Payment cancelled', description: 'No money was taken from your account.' }),
+          onCancelled: () => toast({ title: 'Payment window closed', description: "We'll confirm the payment status with Paystack before your balance updates." }),
         });
       }
     } catch (error) {

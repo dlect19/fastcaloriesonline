@@ -1,0 +1,1 @@
+import{b as n}from"./index-kl2jmu7z.js";function l(a,o=10){const[t,e]=n.useState(1),s=Math.max(1,Math.ceil(a.length/o));n.useEffect(()=>{t>s&&e(1)},[s,t]);const c=n.useMemo(()=>a.slice((t-1)*o,t*o),[a,t,o]);return{page:t,setPage:e,totalPages:s,perPage:o,paged:c,totalItems:a.length}}export{l as u};
