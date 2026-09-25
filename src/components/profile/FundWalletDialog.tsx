@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Loader2, Wallet, CreditCard } from 'lucide-react';
 import { useCustomerWallet } from '@/hooks/useCustomerWallet';
 import { useToast } from '@/hooks/use-toast';
-import { openPaymentUrl, paymentOpensInApp } from '@/lib/openPaymentUrl';
+import { openPaymentUrl, paymentOpensInApp, paymentCallbackUrl } from '@/lib/openPaymentUrl';
 
 interface FundWalletDialogProps {
   open: boolean;
@@ -38,7 +38,7 @@ export function FundWalletDialog({ open, onOpenChange, callbackUrl }: FundWallet
 
     setLoading(true);
     try {
-      const url = callbackUrl || `${window.location.origin}/profile/wallet?funding=success`;
+      const url = paymentCallbackUrl(callbackUrl || '/profile/wallet?funding=success');
       const result = await initializeFunding(amount, url);
 
       if (result.authorization_url) {

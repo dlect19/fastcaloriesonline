@@ -42,6 +42,55 @@ export function classifyPaymentNavigation(rawUrl: string | undefined, currentHos
   return null;
 }
 
+/** Custom URL scheme registered for the native app (matches Android custom_url_scheme). */
+export const NATIVE_APP_SCHEME = 'com.customers.fastcalories.app';
+/** HTTPS bridge page Paystack redirects to on iOS; it hands off to NATIVE_APP_SCHEME. */
+export const PAYMENT_BRIDGE_URL = 'https://app.fastcalories.online/payment-return.html';
+
+/** Only same-app relative paths are allowed as return targets. */
+export function safeReturnPath(raw: string | null | undefined, fallback = '/profile/wallet'): string {
+  if (!raw || !raw.startsWith('/') || raw.startsWith('//') || raw.includes('\\')) return fallback;
+  return raw;
+}
+
+/**
+ * Callback URL to send to Paystack. On iOS native the app origin
+ * (capacitor://localhost or the website) just renders inside the Safari
+ * sheet and never returns to the app, so iOS uses the HTTPS bridge page,
+ * which reopens FastCalories through its custom URL scheme. Other platforms
+ * are unchanged. Exported for tests.
+ */
+export function paymentCallbackUrl(pathOrUrl: string, platform = Capacitor.isNativePlatform() ? Capacitor.getPlatform() : 'web', origin = typeof window !== 'undefined' ? window.location.origin : ''): string {
+  let path = pathOrUrl;
+  try {
+    if (/^[a-z][a-z0-9+.-]*:/i.test(pathOrUrl)) { const u = new URL(pathOrUrl); path = `${u.pathname}${u.search}${u.hash}`; }
+  } catch { /* keep as-is */ }
+  path = safeReturnPath(path, '/');
+  if (platform === 'ios') return `${PAYMENT_BRIDGE_URL}?target=${encodeURIComponent(path)}`;
+  return `${origin}${path}`;
+}
+
+/**
+ * Parses a `com.customers.fastcalories.app://payment-return?...` deep link into
+ * an in-app path, carrying Paystack's reference so the target screen verifies
+ * it with the server. Returns null for any other URL. Exported for tests.
+ */
+export function paymentReturnTarget(rawUrl: string | undefined): string | null {
+  if (!rawUrl || !rawUrl.toLowerCase().startsWith(`${NATIVE_APP_SCHEME}://payment-return`)) return null;
+  try {
+    const u = new URL(rawUrl);
+    const target = safeReturnPath(u.searchParams.get('target'));
+    const t = new URL(target, 'https://x.invalid');
+    for (const k of ['reference', 'trxref']) {
+      const v = u.searchParams.get(k);
+      if (v && !t.searchParams.has(k)) t.searchParams.set(k, v);
+    }
+    return `${t.pathname}${t.search}${t.hash}`;
+  } catch {
+    return null;
+  }
+}
+
 let activeSession = false;
 
 /** Fired on window whenever a native payment view closes/returns (any outcome). */
@@ -146,10 +195,14 @@ async function openIos(url: string, opts: OpenPaymentOptions): Promise<void> {
   try {
     handles.push(
       await App.addListener('appUrlOpen', async ({ url: incoming }) => {
-        if (classifyPaymentNavigation(incoming) !== 'callback') return;
+        let target = paymentReturnTarget(incoming);
+        if (!target && classifyPaymentNavigation(incoming) === 'callback') {
+          const u = new URL(incoming);
+          target = `${u.pathname}${u.search}${u.hash}`;
+        }
+        if (!target) return;
         try { await Browser.close(); } catch { /* already closed */ }
-        const u = new URL(incoming);
-        await finish(`${u.pathname}${u.search}${u.hash}`);
+        await finish(target);
       }),
     );
   } catch (e) { console.warn('appUrlOpen listener unavailable', e); }

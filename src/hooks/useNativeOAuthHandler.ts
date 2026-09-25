@@ -3,6 +3,8 @@ import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
 
 import { supabase } from '@/integrations/supabase/client';
+import { Browser } from '@capacitor/browser';
+import { paymentReturnTarget, routeInApp } from '@/lib/openPaymentUrl';
 
 const OAUTH_TIMEOUT_MS = 25000;
 
@@ -35,6 +37,16 @@ export function useNativeOAuthHandler() {
 
     const handleDeepLink = async (url?: string) => {
       if (!url || disposed) return;
+
+      // Paystack return via the HTTPS bridge (also covers a cold start where
+      // the payment listener no longer exists). Routing is deduped; the
+      // target screen verifies the reference with the server.
+      const paymentTarget = paymentReturnTarget(url);
+      if (paymentTarget) {
+        try { await Browser.close(); } catch { /* not open */ }
+        routeInApp(paymentTarget);
+        return;
+      }
 
       const isOAuthCallback =
         url.includes('access_token=') ||
