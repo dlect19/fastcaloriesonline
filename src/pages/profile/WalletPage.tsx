@@ -13,6 +13,7 @@ import { CreateDVADialog } from '@/components/profile/CreateDVADialog';
 import { ArrowLeft, Wallet, Plus, Leaf, AlertCircle, CheckCircle2, Loader2, Building2, User } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { isAbortLike, withTimeout } from '@/lib/abortLike';
 
 export default function WalletPage() {
   const { user, loading: authLoading } = useAuth();
@@ -24,17 +25,18 @@ export default function WalletPage() {
   const [dvaDialogOpen, setDvaDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('profile');
   const [verifying, setVerifying] = useState(false);
-  const verificationAttempted = useRef(false);
+  const verificationAttempted = useRef<string | null>(null);
 
   // Handle Paystack callback - verify payment reference (with retry polling
   // in case Paystack hasn't finalized by the time the user is redirected back).
   useEffect(() => {
     const verifyPayment = async () => {
       const reference = searchParams.get('trxref') || searchParams.get('reference');
-      if (!reference || verificationAttempted.current) return;
+      if (!reference || verificationAttempted.current === reference) return;
 
-      verificationAttempted.current = true;
+      verificationAttempted.current = reference;
       setVerifying(true);
+      try {
 
       const MAX_ATTEMPTS = 10; // ~20s total
       let credited = false;
@@ -42,9 +44,18 @@ export default function WalletPage() {
 
       for (let attempt = 0; attempt < MAX_ATTEMPTS && !credited; attempt++) {
         try {
-          const { data, error } = await supabase.functions.invoke('verify-wallet-funding', {
-            body: { reference },
-          });
+          if (document.visibilityState === 'hidden') {
+            // Backgrounded: wait for resume instead of burning attempts on aborts.
+            await new Promise<void>((r) => {
+              const on = () => { if (document.visibilityState !== 'hidden') { document.removeEventListener('visibilitychange', on); r(); } };
+              document.addEventListener('visibilitychange', on);
+              setTimeout(() => { document.removeEventListener('visibilitychange', on); r(); }, 60_000);
+            });
+          }
+          const { data, error } = await withTimeout(
+            supabase.functions.invoke('verify-wallet-funding', { body: { reference } }),
+            12_000,
+          );
           if (error) throw error;
 
           if (data?.success) {
@@ -58,7 +69,8 @@ export default function WalletPage() {
           }
           lastError = data?.error || null;
         } catch (err) {
-          lastError = err instanceof Error ? err.message : 'Could not verify payment';
+          // Aborts/network drops during resume are not a payment failure.
+          lastError = isAbortLike(err) ? null : err instanceof Error ? err.message : 'Could not verify payment';
           console.error('verify-wallet-funding attempt failed:', err);
         }
         if (!credited) await new Promise((r) => setTimeout(r, 2000));
@@ -73,8 +85,10 @@ export default function WalletPage() {
         refetch();
       }
 
-      setVerifying(false);
-      setSearchParams({});
+      } finally {
+        setVerifying(false);
+        setSearchParams({}, { replace: true });
+      }
     };
 
     if (user && !authLoading) {
