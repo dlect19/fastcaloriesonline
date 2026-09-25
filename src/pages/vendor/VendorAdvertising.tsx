@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
-import { openPaymentUrl } from '@/lib/openPaymentUrl';
+import { openPaymentUrl, paymentCallbackUrl } from '@/lib/openPaymentUrl';
 import { Loader2, Eye, MousePointer, DollarSign, Plus, Wallet, ArrowUpRight, ArrowDownLeft, Megaphone, Clock, Sparkles, Upload, Image as ImageIcon, Trash2, ImagePlus } from 'lucide-react';
 import { VendorLayout } from '@/components/vendor/VendorLayout';
 
@@ -265,7 +265,7 @@ export default function VendorAdvertising() {
     if (!amount || amount < 1000) return;
     setSaving(true);
     try {
-      const callbackUrl = `${window.location.origin}/vendor/advertising`;
+      const callbackUrl = paymentCallbackUrl('/vendor/advertising');
       const { data, error } = await supabase.functions.invoke('paystack-initialize-ad-funding', {
         body: { amount, callbackUrl },
       });

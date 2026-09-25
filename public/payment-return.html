@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Returning to FastCalories</title>
+<style>
+body{font-family:-apple-system,system-ui,sans-serif;margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f0fdf4;color:#14532d;text-align:center;padding:24px;box-sizing:border-box}
+a.btn{display:inline-block;margin-top:20px;padding:14px 28px;border-radius:12px;background:#16a34a;color:#fff;text-decoration:none;font-weight:600}
+p{color:#3f6212;font-size:15px}
+</style>
+</head>
+<body>
+<main>
+<h1>Returning to FastCalories…</h1>
+<p>We'll confirm your payment in the app. Nothing is charged or credited from this page.</p>
+<a class="btn" id="open" href="#">Open FastCalories</a>
+<p style="font-size:13px">If the app doesn't open, tap the button above, or tap Done.</p>
+</main>
+<script>
+// Hand-off only: the app re-verifies the reference with the server.
+(function () {
+  var q = new URLSearchParams(location.search);
+  var target = q.get('target') || '/profile/wallet';
+  if (target.charAt(0) !== '/' || target.slice(0, 2) === '//') target = '/profile/wallet';
+  var out = new URLSearchParams();
+  out.set('target', target);
+  ['reference', 'trxref'].forEach(function (k) { var v = q.get(k); if (v) out.set(k, v); });
+  var deep = 'com.customers.fastcalories.app://payment-return?' + out.toString();
+  document.getElementById('open').setAttribute('href', deep);
+  setTimeout(function () { location.href = deep; }, 50);
+})();
+</script>
+</body>
+</html>

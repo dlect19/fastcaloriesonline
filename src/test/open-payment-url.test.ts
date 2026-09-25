@@ -40,3 +40,38 @@ describe('native fallback never leaves app on iOS', () => {
     expect(ios).not.toMatch(/window\.open|location\.href\s*=|inappbrowser/);
   });
 });
+import { paymentCallbackUrl, paymentReturnTarget, safeReturnPath } from '@/lib/openPaymentUrl';
+describe('iOS Paystack return bridge', () => {
+  it('iOS callback goes through HTTPS bridge; other platforms unchanged', () => {
+    expect(paymentCallbackUrl('/profile/wallet?funding=success', 'ios', 'capacitor://localhost'))
+      .toBe('https://app.fastcalories.online/payment-return.html?target=%2Fprofile%2Fwallet%3Ffunding%3Dsuccess');
+    expect(paymentCallbackUrl('https://app.fastcalories.online/cart?funded=true', 'ios')).toContain('target=%2Fcart%3Ffunded%3Dtrue');
+    expect(paymentCallbackUrl('/payment-callback', 'android', 'https://localhost')).toBe('https://localhost/payment-callback');
+    expect(paymentCallbackUrl('/profile/wallet?funding=success', 'web', 'https://app.fastcalories.online')).toBe('https://app.fastcalories.online/profile/wallet?funding=success');
+  });
+  it('deep link maps to in-app path carrying the reference for server verification', () => {
+    expect(paymentReturnTarget('com.customers.fastcalories.app://payment-return?target=%2Fprofile%2Fwallet%3Ffunding%3Dsuccess&reference=abc&trxref=abc'))
+      .toBe('/profile/wallet?funding=success&reference=abc&trxref=abc');
+    expect(paymentReturnTarget('com.customers.fastcalories.app://payment-return?target=%2Fpayment-callback&reference=r')).toBe('/payment-callback?reference=r');
+  });
+  it('rejects foreign/unsafe targets and unrelated links', () => {
+    expect(paymentReturnTarget('com.customers.fastcalories.app://payment-return?target=%2F%2Fevil.com&reference=r')).toBe('/profile/wallet?reference=r');
+    expect(paymentReturnTarget('https://evil.com/payment-return?target=/x')).toBeNull();
+    expect(paymentReturnTarget(undefined)).toBeNull();
+    expect(safeReturnPath('https://evil.com')).toBe('/profile/wallet');
+  });
+  it('bridge page never credits and only hands off via app scheme', () => {
+    const html = readFileSync('public/payment-return.html', 'utf8');
+    expect(html).toContain('com.customers.fastcalories.app://payment-return');
+    expect(html).not.toMatch(/supabase|functions\/v1|verify/i);
+  });
+  it('iOS registers the custom URL scheme', () => {
+    expect(readFileSync('ios/App/App/Info.plist', 'utf8')).toContain('<string>com.customers.fastcalories.app</string>');
+  });
+  it('iOS appUrlOpen handles bridge deep link and closes the sheet', () => {
+    const src = readFileSync('src/lib/openPaymentUrl.ts', 'utf8');
+    const ios = src.slice(src.indexOf('async function openIos'), src.indexOf('export function paymentStrategyFor'));
+    expect(ios).toContain('paymentReturnTarget(incoming)');
+    expect(ios).toContain('Browser.close()');
+  });
+});
