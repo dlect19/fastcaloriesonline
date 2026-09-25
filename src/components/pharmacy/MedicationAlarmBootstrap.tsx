@@ -59,7 +59,7 @@ export function MedicationAlarmBootstrap() {
             .from('medication_reminder_diagnostics')
             .insert({
               user_id: user.id,
-              event_type: res.reason === 'permission_denied' ? 'permission_denied' : res.reason === 'plugin_missing' ? 'plugin_missing' : 'schedule_failed',
+              event_type: res.reason === 'permission_denied' ? 'permission_denied' : 'schedule_failed',
               platform: Capacitor.getPlatform(),
               detail: res.reason,
             } as any)
