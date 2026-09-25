@@ -1,4 +1,9 @@
 import { Capacitor } from '@capacitor/core';
+// Static imports: these are tiny JS proxies (no native code). A lazy chunk that
+// fails to load (stale cache / remote bundle) previously threw and silently
+// fell back to window.location.href, which iOS Capacitor opens in Safari.
+import { Browser } from '@capacitor/browser';
+import { App } from '@capacitor/app';
 
 /**
  * Opens a Paystack hosted checkout URL.
@@ -100,8 +105,6 @@ async function openNative(url: string, opts: OpenPaymentOptions): Promise<void> 
  * status with the server. A deep link back into the app also closes it.
  */
 async function openIos(url: string, opts: OpenPaymentOptions): Promise<void> {
-  const { Browser } = await import('@capacitor/browser');
-  const { App } = await import('@capacitor/app');
   let finished = false;
   const handles: Array<{ remove: () => Promise<void> }> = [];
   const finish = async (target: string | null) => {
@@ -112,16 +115,26 @@ async function openIos(url: string, opts: OpenPaymentOptions): Promise<void> {
     else opts.onCancelled?.();
   };
   const fallback = opts.returnPath ?? `${window.location.pathname}${window.location.search}`;
-  handles.push(
-    await App.addListener('appUrlOpen', async ({ url: incoming }) => {
-      if (classifyPaymentNavigation(incoming) !== 'callback') return;
-      try { await Browser.close(); } catch { /* already closed */ }
-      const u = new URL(incoming);
-      await finish(`${u.pathname}${u.search}${u.hash}`);
-    }),
-  );
-  handles.push(await Browser.addListener('browserFinished', () => { void finish(fallback); opts.onCancelled?.(); }));
-  await Browser.open({ url, presentationStyle: 'fullscreen' });
+  // Listeners are best-effort: a listener failure must never push checkout out to Safari.
+  try {
+    handles.push(
+      await App.addListener('appUrlOpen', async ({ url: incoming }) => {
+        if (classifyPaymentNavigation(incoming) !== 'callback') return;
+        try { await Browser.close(); } catch { /* already closed */ }
+        const u = new URL(incoming);
+        await finish(`${u.pathname}${u.search}${u.hash}`);
+      }),
+    );
+  } catch (e) { console.warn('appUrlOpen listener unavailable', e); }
+  try {
+    handles.push(await Browser.addListener('browserFinished', () => { void finish(fallback); }));
+  } catch (e) { console.warn('browserFinished listener unavailable', e); }
+  try {
+    await Browser.open({ url, presentationStyle: 'fullscreen' });
+  } catch (first) {
+    console.warn('SFSafariViewController fullscreen open failed, retrying default style', first);
+    await Browser.open({ url });
+  }
 }
 
 /** Exported for tests: which native strategy a platform uses. */
@@ -131,8 +144,21 @@ export function paymentStrategyFor(platform: string): 'inappbrowser' | 'safari-v
   return 'redirect';
 }
 
+/**
+ * Fallback when the preferred in-app view fails. On iOS we NEVER navigate the
+ * main WebView to Paystack: Capacitor hands any off-origin navigation to the
+ * standalone Safari app, which is exactly the "leaves the app" bug. Android may
+ * retry with the Browser plugin (Custom Tab) before a last-resort redirect.
+ */
+export function nativeFallbackFor(platform: string): 'error' | 'browser-then-redirect' | 'redirect' {
+  if (platform === 'ios') return 'error';
+  if (platform === 'android') return 'browser-then-redirect';
+  return 'redirect';
+}
+
 export async function openPaymentUrl(url: string, opts: OpenPaymentOptions = {}) {
-  const strategy = Capacitor.isNativePlatform() ? paymentStrategyFor(Capacitor.getPlatform()) : 'redirect';
+  const platform = Capacitor.isNativePlatform() ? Capacitor.getPlatform() : 'web';
+  const strategy = paymentStrategyFor(platform);
   if (strategy !== 'redirect') {
     try {
       if (strategy === 'safari-view') await openIos(url, opts);
@@ -140,7 +166,12 @@ export async function openPaymentUrl(url: string, opts: OpenPaymentOptions = {})
       return;
     } catch (err) {
       activeSession = false;
-      console.error('In-app payment view unavailable, falling back:', err);
+      console.error('In-app payment view unavailable:', err);
+      const fb = nativeFallbackFor(platform);
+      if (fb === 'error') {
+        throw new Error('Could not open the payment window. Please try again.');
+      }
+      try { await Browser.open({ url }); return; } catch { /* fall through */ }
     }
   }
   window.location.href = url;
