@@ -25,3 +25,18 @@ describe('platform payment routing', () => {
     expect(iosPlugins).toEqual(expect.arrayContaining(['@capacitor/browser', '@capacitor/app']));
   });
 });
+import { nativeFallbackFor } from '@/lib/openPaymentUrl';
+import { readFileSync } from 'fs';
+describe('native fallback never leaves app on iOS', () => {
+  it('iOS errors instead of redirecting main WebView', () => {
+    expect(nativeFallbackFor('ios')).toBe('error');
+    expect(nativeFallbackFor('android')).toBe('browser-then-redirect');
+    expect(nativeFallbackFor('web')).toBe('redirect');
+  });
+  it('iOS path uses SFSafariViewController via Browser.open, not window.open', () => {
+    const src = readFileSync('src/lib/openPaymentUrl.ts', 'utf8');
+    const ios = src.slice(src.indexOf('async function openIos'), src.indexOf('export function paymentStrategyFor'));
+    expect(ios).toContain('Browser.open');
+    expect(ios).not.toMatch(/window\.open|location\.href\s*=|inappbrowser/);
+  });
+});
