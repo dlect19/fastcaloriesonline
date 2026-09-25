@@ -12,3 +12,16 @@ describe('native payment view navigation', () => {
     expect(c(undefined)).toBeNull();
   });
 });
+import { paymentStrategyFor } from '@/lib/openPaymentUrl';
+import { iosPlugins } from '../../capacitor.config';
+describe('platform payment routing', () => {
+  it('routes per platform', () => {
+    expect(paymentStrategyFor('android')).toBe('inappbrowser');
+    expect(paymentStrategyFor('ios')).toBe('safari-view');
+    expect(paymentStrategyFor('web')).toBe('redirect');
+  });
+  it('iOS excludes inappbrowser but keeps browser/app', () => {
+    expect(iosPlugins).not.toContain('@capacitor/inappbrowser');
+    expect(iosPlugins).toEqual(expect.arrayContaining(['@capacitor/browser', '@capacitor/app']));
+  });
+});
