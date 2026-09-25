@@ -44,6 +44,33 @@ export function classifyPaymentNavigation(rawUrl: string | undefined, currentHos
 
 let activeSession = false;
 
+/** Fired on window whenever a native payment view closes/returns (any outcome). */
+export const PAYMENT_RETURN_EVENT = 'fc:payment-return';
+let lastReturnAt = 0;
+let lastReturnTarget = '';
+
+/**
+ * Route inside the SPA without a full reload (a reload right after the
+ * payment sheet closes, while iOS is resuming the WebView, is what aborted
+ * the wallet/config fetches). Duplicate returns within 1.5s are ignored.
+ * Exported for tests.
+ */
+export function routeInApp(target: string, now = Date.now()): boolean {
+  if (target === lastReturnTarget && now - lastReturnAt < 1500) return false;
+  lastReturnAt = now;
+  lastReturnTarget = target;
+  const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  if (target !== current) {
+    window.history.pushState(null, '', target);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  }
+  window.dispatchEvent(new CustomEvent(PAYMENT_RETURN_EVENT, { detail: { target } }));
+  return true;
+}
+
+/** Test helper. */
+export function __resetPaymentReturn() { lastReturnAt = 0; lastReturnTarget = ''; }
+
 async function openNative(url: string, opts: OpenPaymentOptions): Promise<void> {
   const { InAppBrowser, DefaultWebViewOptions } = await import('@capacitor/inappbrowser');
   if (activeSession) {
@@ -67,9 +94,9 @@ async function openNative(url: string, opts: OpenPaymentOptions): Promise<void> 
       if (kind === 'callback' && data.url) {
         const u = new URL(data.url);
         // Route inside the app; the target screen verifies with the server.
-        window.location.assign(`${u.pathname}${u.search}${u.hash}`);
+        routeInApp(`${u.pathname}${u.search}${u.hash}`);
       } else if (opts.returnPath) {
-        window.location.assign(opts.returnPath);
+        routeInApp(opts.returnPath);
       } else {
         opts.onCancelled?.();
       }
@@ -111,7 +138,7 @@ async function openIos(url: string, opts: OpenPaymentOptions): Promise<void> {
     if (finished) return;
     finished = true;
     await Promise.all(handles.map((h) => h.remove().catch(() => undefined)));
-    if (target) window.location.assign(target);
+    if (target) routeInApp(target);
     else opts.onCancelled?.();
   };
   const fallback = opts.returnPath ?? `${window.location.pathname}${window.location.search}`;

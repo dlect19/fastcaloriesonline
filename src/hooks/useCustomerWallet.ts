@@ -3,6 +3,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
 import { usePlatformSettings } from '@/hooks/usePlatformSettings';
+import { PAYMENT_RETURN_EVENT } from '@/lib/openPaymentUrl';
+import { isAbortLike } from '@/lib/abortLike';
 import type { Tables } from '@/integrations/supabase/types';
 
 type WalletRow = Tables<'wallets'>;
@@ -22,6 +24,8 @@ export function useCustomerWallet() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const loadedOnce = useRef(false);
+
   const fetchWallet = useCallback(async () => {
     if (!user) {
       setWallet(null);
@@ -30,20 +34,25 @@ export function useCustomerWallet() {
       return;
     }
 
+    // Only the very first load shows the full-screen loader; refreshes after
+    // payment return/resume are silent so the screen can never get stuck.
+    if (!loadedOnce.current) setLoading(true);
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 15_000);
     try {
-      setLoading(true);
-      
       const [walletResult, profileResult] = await Promise.all([
         supabase
           .from('wallets')
           .select('*')
           .eq('user_id', user.id)
           .eq('wallet_type', 'customer')
+          .abortSignal(ac.signal)
           .maybeSingle(),
         supabase
           .from('profiles')
           .select('full_name, phone')
           .eq('user_id', user.id)
+          .abortSignal(ac.signal)
           .single(),
       ]);
 
@@ -55,10 +64,13 @@ export function useCustomerWallet() {
       }
       
       setError(null);
+      loadedOnce.current = true;
     } catch (err) {
       console.error('Error fetching wallet:', err);
-      setError('Failed to load wallet');
+      // An abort while backgrounded is not a failure; resume will retry.
+      if (!isAbortLike(err)) setError('Failed to load wallet');
     } finally {
+      clearTimeout(timer);
       setLoading(false);
     }
   }, [user]);
@@ -100,6 +112,23 @@ export function useCustomerWallet() {
 
   useEffect(() => {
     fetchWallet();
+  }, [fetchWallet]);
+
+  // Silent refresh when returning from a payment view or resuming the app.
+  useEffect(() => {
+    let t: ReturnType<typeof setTimeout> | null = null;
+    const refresh = () => {
+      if (document.visibilityState === 'hidden') return;
+      if (t) clearTimeout(t);
+      t = setTimeout(() => { void fetchWallet(); }, 400); // debounce bursts
+    };
+    window.addEventListener(PAYMENT_RETURN_EVENT, refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      if (t) clearTimeout(t);
+      window.removeEventListener(PAYMENT_RETURN_EVENT, refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
   }, [fetchWallet]);
 
   // Subscribe to wallet changes via realtime
