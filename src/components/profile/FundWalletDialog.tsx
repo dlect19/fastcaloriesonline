@@ -42,6 +42,8 @@ export function FundWalletDialog({ open, onOpenChange, callbackUrl }: FundWallet
       const result = await initializeFunding(amount, url);
 
       if (result.authorization_url) {
+        // Close the dialog before the sheet opens so it is fresh on return.
+        onOpenChange(false);
         await openPaymentUrl(result.authorization_url, {
           returnPath: '/profile/wallet',
           onCancelled: () => toast({ title: 'Payment window closed', description: "We'll confirm the payment status with Paystack before your balance updates." }),
