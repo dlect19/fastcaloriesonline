@@ -18,7 +18,16 @@
 		}
 	},
 	"ios": {
-		"contentInset": "always"
+		"contentInset": "always",
+		"includePlugins": [
+			"@capacitor-firebase/messaging",
+			"@capacitor/app",
+			"@capacitor/browser",
+			"@capacitor/geolocation",
+			"@capacitor/local-notifications",
+			"@capacitor/push-notifications",
+			"@capacitor/splash-screen"
+		]
 	},
 	"android": {
 		"allowMixedContent": false,
