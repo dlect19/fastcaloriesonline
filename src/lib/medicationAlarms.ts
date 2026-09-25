@@ -100,16 +100,42 @@ export function expandOccurrences(
   return out.sort((a, b) => a.getTime() - b.getTime());
 }
 
-export async function ensurePermissions(): Promise<boolean> {
-  if (!isNativeAlarmPlatform()) return false;
+export type PermissionOutcome = 'granted' | 'denied' | 'plugin_missing';
+
+/** True when the native LocalNotifications plugin is compiled into this build. */
+export function isLocalNotificationsAvailable(): boolean {
   try {
-    const perm = await LocalNotifications.checkPermissions();
-    if (perm.display === 'granted') return true;
-    const req = await LocalNotifications.requestPermissions();
-    return req.display === 'granted';
+    return Capacitor.isPluginAvailable('LocalNotifications');
   } catch {
     return false;
   }
+}
+
+function isPluginMissingError(e: any): boolean {
+  const msg = String(e?.message || e || '');
+  return e?.code === 'UNIMPLEMENTED' || /not implemented|unimplemented|plugin is not/i.test(msg);
+}
+
+export const PLUGIN_MISSING_MESSAGE =
+  'This app build is missing the reminder component. Please update to the latest FastCalories app. (Developers: run npx cap sync and rebuild.)';
+
+export async function checkNotificationPermission(): Promise<PermissionOutcome> {
+  if (!isNativeAlarmPlatform()) return 'denied';
+  if (!isLocalNotificationsAvailable()) return 'plugin_missing';
+  try {
+    const perm = await LocalNotifications.checkPermissions();
+    if (perm.display === 'granted') return 'granted';
+    const req = await LocalNotifications.requestPermissions();
+    return req.display === 'granted' ? 'granted' : 'denied';
+  } catch (e) {
+    if (isPluginMissingError(e)) return 'plugin_missing';
+    console.warn('[medicationAlarms] permission check failed', e);
+    return 'denied';
+  }
+}
+
+export async function ensurePermissions(): Promise<boolean> {
+  return (await checkNotificationPermission()) === 'granted';
 }
 
 export async function ensureChannel(prefs: AlarmPrefs = DEFAULT_ALARM_PREFS): Promise<void> {
@@ -187,8 +213,9 @@ export async function syncMedicationAlarms(
     return { scheduled: 0, cancelled: 0, kept: 0, reason: 'notifications_disabled' };
   }
 
-  const granted = await ensurePermissions();
-  if (!granted) return { scheduled: 0, cancelled: 0, kept: 0, reason: 'permission_denied' };
+  const perm = await checkNotificationPermission();
+  if (perm === 'plugin_missing') return { scheduled: 0, cancelled: 0, kept: 0, reason: 'plugin_missing' };
+  if (perm !== 'granted') return { scheduled: 0, cancelled: 0, kept: 0, reason: 'permission_denied' };
 
   await ensureChannel(prefs);
   await registerActionTypes();
@@ -314,8 +341,9 @@ export async function scheduleSnooze(
 /** Fires a notification a few seconds out so the user can verify their device. */
 export async function sendTestReminder(prefs: AlarmPrefs = DEFAULT_ALARM_PREFS): Promise<string | null> {
   if (!isNativeAlarmPlatform()) return 'This test only runs in the installed mobile app.';
-  const granted = await ensurePermissions();
-  if (!granted) return 'Notification permission is not granted for FastCalories.';
+  const perm = await checkNotificationPermission();
+  if (perm === 'plugin_missing') return PLUGIN_MISSING_MESSAGE;
+  if (perm !== 'granted') return 'Notification permission is not granted for FastCalories.';
   await ensureChannel(prefs);
   await registerActionTypes();
   try {
