@@ -158,6 +158,17 @@ export default function DrugTracker() {
           </Card>
         )}
 
+        {isNativeAlarmPlatform() && syncInfo?.reason === 'plugin_missing' && (
+          <Card className="border-destructive/40">
+            <CardContent className="p-4 text-sm">
+              <p className="font-medium text-foreground">Reminders need an app update</p>
+              <p className="text-xs text-muted-foreground">
+                This version of the app can't schedule reminders. Your phone's notification setting is not the problem — please install the latest FastCalories app.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
         {isNativeAlarmPlatform() && syncInfo?.reason === 'permission_denied' && (
           <Card className="border-destructive/40">
             <CardContent className="p-4 text-sm">
