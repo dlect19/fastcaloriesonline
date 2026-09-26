@@ -31,7 +31,8 @@ public class ReminderReceiver extends BroadcastReceiver {
         );
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(context, ReminderScheduler.CHANNEL_ID)
-                .setSmallIcon(context.getApplicationInfo().icon)
+                .setSmallIcon(R.drawable.ic_stat_fastcalories)
+                .setColor(ContextCompat.getColor(context, R.color.notificationAccent))
                 .setContentTitle(safeTitle)
                 .setContentText(safeMessage)
                 .setStyle(new NotificationCompat.BigTextStyle().bigText(safeMessage))

@@ -13,6 +13,7 @@ import {
   doseClientKey,
   isNativeAlarmPlatform,
 } from '@/lib/medicationAlarms';
+import { sanitizeDrugReminderPayload, strengthFromNotes } from '@/lib/drugReminderPayload';
 import { recordDoseAction, flushDoseQueue, DoseStatus } from '@/lib/medicationDoses';
 
 export interface MedicationSettings {
@@ -55,7 +56,11 @@ function normaliseTimes(times: any): string[] {
 }
 
 function toSchedule(row: any): MedicationSchedule & Record<string, any> {
-  return { ...row, reminder_times: normaliseTimes(row.reminder_times) };
+  return {
+    ...row,
+    strength: row.strength ?? strengthFromNotes(row.notes),
+    reminder_times: normaliseTimes(row.reminder_times),
+  };
 }
 
 /** All slots for a schedule that fall on the given calendar day (local time). */
@@ -215,14 +220,14 @@ export function useMedicationReminders() {
     async (id: string, times: string[], patch: Record<string, any> = {}) => {
       const { error } = await supabase
         .from('drug_reminders')
-        .update({
+        .update(sanitizeDrugReminderPayload({
           ...patch,
           reminder_times: times,
           status: 'active',
           is_active: true,
           activated_at: new Date().toISOString(),
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Africa/Lagos',
-        } as any)
+        }) as any)
         .eq('id', id);
       if (error) return { error: error.message };
       await logDiagnostic('schedule_activated');
@@ -234,7 +239,7 @@ export function useMedicationReminders() {
 
   const updateSchedule = useCallback(
     async (id: string, patch: Record<string, any>) => {
-      const { error } = await supabase.from('drug_reminders').update(patch as any).eq('id', id);
+      const { error } = await supabase.from('drug_reminders').update(sanitizeDrugReminderPayload(patch) as any).eq('id', id);
       if (error) return { error: error.message };
       await cancelScheduleAlarms(id); // never leave stale notifications behind
       await fetchAll();
@@ -254,7 +259,7 @@ export function useMedicationReminders() {
   const createManualSchedule = useCallback(
     async (payload: Record<string, any>) => {
       if (!user) return { error: 'Not signed in' };
-      const { error } = await supabase.from('drug_reminders').insert({
+      const { error } = await supabase.from('drug_reminders').insert(sanitizeDrugReminderPayload({
         ...payload,
         user_id: user.id,
         source: 'manual',
@@ -264,7 +269,7 @@ export function useMedicationReminders() {
         is_active: true,
         activated_at: new Date().toISOString(),
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Africa/Lagos',
-      } as any);
+      }) as any);
       if (error) return { error: error.message };
       await fetchAll();
       return {};

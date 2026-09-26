@@ -77,13 +77,11 @@ Deno.serve(async (req) => {
       const { error } = await supabase.from("drug_reminders").insert({
         user_id: rx.user_id,
         drug_name: drugName,
-        strength: product?.strength ?? null,
         dosage: `${qtyPerDose} ${unit}`,
         instructions: rx.doctor_instructions || rx.pharmacist_instructions || product?.pharmacist_dosage_instructions || null,
         frequency: freq || "as_instructed",
-        doses_per_day: perDay,
+        notes: product?.strength ? `Strength: ${product.strength}` : null,
         reminder_times: explicitTimes,
-        times_needed: explicitTimes.length === 0,
         start_date: new Date().toISOString().split("T")[0],
         end_date: endDate,
         // DRAFT: prepared for the customer, but no notification is scheduled yet.
@@ -92,13 +90,12 @@ Deno.serve(async (req) => {
         source: "pharmacy_order",
         instruction_source: rx.prescription_type === "doctor" ? "doctor_prescription" : "pharmacist_instruction",
         verification_status: verified ? "verified" : "pending_verification",
-        verified_by: verified ? rx.approved_by : null,
-        verified_at: verified ? rx.approved_at : null,
         prescription_order_id: rx.id,
         drug_usage_tracking_id: usage?.id || null,
       });
 
-      if (!error) created++;
+      if (error) console.error("drug_reminders draft insert failed", error.code, error.message);
+      else created++;
     }
 
     return new Response(JSON.stringify({ success: true, drafts_prepared: created }), {

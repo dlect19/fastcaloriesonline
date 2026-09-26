@@ -237,7 +237,7 @@ export async function syncMedicationAlarms(
         channelId: MED_CHANNEL_ID,
         actionTypeId: MED_ACTION_TYPE,
         sound: prefs.soundEnabled ? 'alarm.wav' : undefined,
-        smallIcon: 'ic_stat_icon_config_sample',
+        smallIcon: 'ic_stat_fastcalories',
         extra: {
           kind: MED_EXTRA_KIND,
           reminder_id: s.id,
@@ -322,7 +322,7 @@ export async function scheduleSnooze(
           channelId: MED_CHANNEL_ID,
           actionTypeId: MED_ACTION_TYPE,
           sound: prefs.soundEnabled ? 'alarm.wav' : undefined,
-          smallIcon: 'ic_stat_icon_config_sample',
+          smallIcon: 'ic_stat_fastcalories',
           extra: {
             kind: MED_EXTRA_KIND,
             snooze: true,
@@ -358,7 +358,7 @@ export async function sendTestReminder(prefs: AlarmPrefs = DEFAULT_ALARM_PREFS):
           schedule: { at: new Date(Date.now() + 8000), allowWhileIdle: true },
           channelId: MED_CHANNEL_ID,
           sound: prefs.soundEnabled ? 'alarm.wav' : undefined,
-          smallIcon: 'ic_stat_icon_config_sample',
+          smallIcon: 'ic_stat_fastcalories',
           extra: { kind: MED_EXTRA_KIND, test: true, url: '/drug-tracker' },
         },
       ],

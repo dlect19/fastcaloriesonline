@@ -162,7 +162,7 @@ export async function scheduleDrugAlarms(reminders: ReminderRow[]): Promise<{ sc
           schedule: { at, allowWhileIdle: true },
           channelId: 'drug_reminders',
           sound: 'alarm.wav',
-          smallIcon: 'ic_stat_icon_config_sample',
+          smallIcon: 'ic_stat_fastcalories',
           extra: { kind: 'drug_reminder', reminder_id: r.id, url: '/drug-tracker' },
         });
 
