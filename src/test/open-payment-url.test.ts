@@ -118,3 +118,24 @@ describe('Android bridge never auto-jumps to the custom scheme', () => {
     expect(androidReturnTarget(`${cb}&trxref=r9&reference=r9`, 'localhost')).toBe('/profile/wallet?funding=success&reference=r9&trxref=r9');
   });
 });
+
+describe('Android bridge hands off via intent: URL (launched natively by the in-app view)', () => {
+  const html = readFileSync('public/payment-return.html', 'utf8');
+  it('uses an intent URL targeting the app scheme and package, never a bare scheme jump', () => {
+    const a = html.slice(html.indexOf("q.get('platform') === 'android'"), html.indexOf('setTimeout(function () { location.href = deep; }'));
+    expect(a).toContain("'intent://payment-return?' + out.toString()");
+    expect(a).toContain('scheme=com.customers.fastcalories.app;package=com.customers.fastcalories.app;end');
+    expect(a).toMatch(/location\.href = intentUrl/);
+    expect(a).not.toMatch(/location\.href = deep/);
+    expect(a).toContain("addEventListener('load'");
+  });
+  it('the deep link Android delivers from that intent maps to wallet with reference', () => {
+    expect(paymentReturnTarget('com.customers.fastcalories.app://payment-return?target=%2Fprofile%2Fwallet%3Ffunding%3Dsuccess&reference=r7&trxref=r7'))
+      .toBe('/profile/wallet?funding=success&reference=r7&trxref=r7');
+  });
+  it('Android manifest registers the custom scheme on a singleTask activity', () => {
+    const m = readFileSync('android/app/src/main/AndroidManifest.xml', 'utf8');
+    expect(m).toContain('android:scheme="@string/custom_url_scheme"');
+    expect(m).toContain('android:launchMode="singleTask"');
+  });
+});
