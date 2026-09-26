@@ -181,6 +181,10 @@ export default function DrugTracker() {
           </Card>
         )}
 
+        {isNativeAlarmPlatform() && syncInfo && !syncInfo.reason?.match(/plugin_missing|permission_denied|not_native|notifications_disabled/) && active.length > 0 && (
+          <AlarmHealthCard info={syncInfo} onResync={() => resync()} />
+        )}
+
         {!isNativeAlarmPlatform() && active.length > 0 && (
           <p className="text-xs text-muted-foreground">
             Install the FastCalories app on your phone to receive reminders while the app is closed.
@@ -448,5 +452,48 @@ export default function DrugTracker() {
 
       <BottomNav />
     </div>
+  );
+}
+
+function AlarmHealthCard({ info, onResync }: { info: SyncResult; onResync: () => void }) {
+  const issues: { title: string; text: string; action?: { label: string; run: () => void } }[] = [];
+  if (info.reason === 'none_pending' || info.pending === 0) {
+    issues.push({ title: 'No alarms are set on this phone', text: 'Your schedules are saved, but the phone has no reminders waiting. Tap Re-sync to set them again.' });
+  } else if (info.reason && info.reason !== 'none_pending') {
+    issues.push({ title: 'Some alarms could not be set', text: info.reason });
+  }
+  if (info.exactAlarm === 'denied') {
+    issues.push({
+      title: 'Reminders may arrive late',
+      text: 'Allow "Alarms & reminders" for FastCalories so reminders ring at the exact time you chose.',
+      action: { label: 'Open setting', run: () => { openExactAlarmSettings().then(onResync); } },
+    });
+  }
+  if (info.channel === 'muted' || info.channel === 'missing') {
+    issues.push({ title: 'Medication alarm sound is off', text: 'In your phone settings, open FastCalories → Notifications → "Medication alarms" and allow sound and pop-up.' });
+  }
+  if (info.capped) {
+    const until = info.coveredUntil ? new Date(info.coveredUntil).toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : null;
+    issues.push({
+      title: 'Phone reminder limit reached',
+      text: `Your phone holds ${info.pending ?? 0} reminders at a time. The next dose of every medicine is included${info.uncoveredSchedules ? ` except ${info.uncoveredSchedules}` : ''}${until ? `, covered until ${until}` : ''}. Open FastCalories regularly to top them up.`,
+    });
+  }
+  if (issues.length === 0) {
+    return <p className="text-xs text-muted-foreground">{info.pending ?? info.scheduled} reminders set on this phone. Sound and volume still follow your phone settings (silent mode, Do Not Disturb).</p>;
+  }
+  return (
+    <Card className="border-destructive/40">
+      <CardContent className="p-4 text-sm space-y-3">
+        {issues.map((i) => (
+          <div key={i.title}>
+            <p className="font-medium text-foreground">{i.title}</p>
+            <p className="text-xs text-muted-foreground">{i.text}</p>
+            {i.action && <Button size="sm" variant="outline" className="mt-2" onClick={i.action.run}>{i.action.label}</Button>}
+          </div>
+        ))}
+        <Button size="sm" onClick={onResync}>Re-sync reminders</Button>
+      </CardContent>
+    </Card>
   );
 }
