@@ -46,7 +46,7 @@ describe('iOS Paystack return bridge', () => {
     expect(paymentCallbackUrl('/profile/wallet?funding=success', 'ios', 'capacitor://localhost'))
       .toBe('https://app.fastcalories.online/payment-return.html?target=%2Fprofile%2Fwallet%3Ffunding%3Dsuccess');
     expect(paymentCallbackUrl('https://app.fastcalories.online/cart?funded=true', 'ios')).toContain('target=%2Fcart%3Ffunded%3Dtrue');
-    expect(paymentCallbackUrl('/payment-callback', 'android', 'https://localhost')).toBe('https://localhost/payment-callback');
+    expect(paymentCallbackUrl('/payment-callback', 'android', 'https://localhost')).toBe('https://app.fastcalories.online/payment-return.html?target=%2Fpayment-callback');
     expect(paymentCallbackUrl('/profile/wallet?funding=success', 'web', 'https://app.fastcalories.online')).toBe('https://app.fastcalories.online/profile/wallet?funding=success');
   });
   it('deep link maps to in-app path carrying the reference for server verification', () => {
@@ -73,5 +73,30 @@ describe('iOS Paystack return bridge', () => {
     const ios = src.slice(src.indexOf('async function openIos'), src.indexOf('export function paymentStrategyFor'));
     expect(ios).toContain('paymentReturnTarget(incoming)');
     expect(ios).toContain('Browser.close()');
+  });
+});
+
+import { androidReturnTarget } from '@/lib/openPaymentUrl';
+describe('Android Paystack return', () => {
+  it('bridge page URL maps to wallet path with reference', () => {
+    expect(androidReturnTarget('https://app.fastcalories.online/payment-return.html?target=%2Fprofile%2Fwallet%3Ffunding%3Dsuccess&trxref=r1&reference=r1', 'localhost'))
+      .toBe('/profile/wallet?funding=success&reference=r1&trxref=r1');
+  });
+  it('custom-scheme deep link and direct callback also map', () => {
+    expect(androidReturnTarget('com.customers.fastcalories.app://payment-return?target=%2Fprofile%2Fwallet&reference=r2')).toBe('/profile/wallet?reference=r2');
+    expect(androidReturnTarget('https://localhost/profile/wallet?reference=r3', 'localhost')).toBe('/profile/wallet?reference=r3');
+  });
+  it('ignores Paystack, bank and 3DS pages and unsafe targets', () => {
+    expect(androidReturnTarget('https://checkout.paystack.com/abc', 'localhost')).toBeNull();
+    expect(androidReturnTarget('https://acs.bank.com/3ds', 'localhost')).toBeNull();
+    expect(androidReturnTarget('https://app.fastcalories.online/payment-return.html?target=%2F%2Fevil.com&reference=r', 'x')).toBe('/profile/wallet?reference=r');
+  });
+  it('close/cancel routes to the return path instead of stranding', () => {
+    const src = readFileSync('src/lib/openPaymentUrl.ts', 'utf8');
+    const a = src.slice(src.indexOf('async function openNative'), src.indexOf('async function openIos'));
+    expect(a).toContain("addListener('browserClosed'");
+    expect(a).toContain('finish(fallback, false)');
+    expect(a).toContain("App.addListener('appUrlOpen'");
+    expect(a).not.toMatch(/verify-wallet-funding|credit/i);
   });
 });
