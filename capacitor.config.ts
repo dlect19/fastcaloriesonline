@@ -28,6 +28,10 @@ const config: CapacitorConfig = {
       }
     : {}),
   plugins: {
+    LocalNotifications: {
+      smallIcon: 'ic_stat_fastcalories',
+      iconColor: '#FF6B35'
+    },
     PushNotifications: {
       presentationOptions: ['alert', 'sound', 'badge']
     },
