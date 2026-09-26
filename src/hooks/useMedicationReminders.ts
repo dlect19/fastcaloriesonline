@@ -10,6 +10,7 @@ import {
   cancelScheduleAlarms,
   cancelAllMedicationAlarms,
   scheduleSnooze,
+  SyncResult,
   doseClientKey,
   isNativeAlarmPlatform,
 } from '@/lib/medicationAlarms';
@@ -90,7 +91,7 @@ export function useMedicationReminders() {
   const [schedules, setSchedules] = useState<(MedicationSchedule & Record<string, any>)[]>([]);
   const [doses, setDoses] = useState<DoseRow[]>([]);
   const [settings, setSettings] = useState<MedicationSettings>(DEFAULT_SETTINGS);
-  const [syncInfo, setSyncInfo] = useState<{ scheduled: number; reason?: string } | null>(null);
+  const [syncInfo, setSyncInfo] = useState<SyncResult | null>(null);
 
   const alarmPrefs: AlarmPrefs = useMemo(
     () => ({
@@ -152,7 +153,10 @@ export function useMedicationReminders() {
         soundEnabled: settings.sound_enabled,
         notificationsEnabled: settings.notifications_enabled,
       });
-      setSyncInfo({ scheduled: result.scheduled, reason: result.reason });
+      setSyncInfo(result);
+      if (result.capped) logDiagnostic('alarms_capped', `pending=${result.pending} candidates=${result.totalCandidates} uncovered=${result.uncoveredSchedules}`);
+      if (result.exactAlarm === 'denied') logDiagnostic('exact_alarm_denied');
+      if (result.channel === 'muted' || result.channel === 'missing') logDiagnostic('channel_issue', result.channel);
       if (result.reason === 'permission_denied') logDiagnostic('permission_denied');
       else if (result.reason && result.reason !== 'not_native' && result.reason !== 'notifications_disabled') {
         logDiagnostic('schedule_failed', result.reason);
