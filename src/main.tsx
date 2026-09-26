@@ -23,6 +23,11 @@ if (import.meta.env.DEV) {
 }
 
 // Hide native splash screen on Capacitor
+// Android native app only: hide scrollbar visuals (scrolling still works).
+if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android') {
+  document.documentElement.classList.add('cap-android');
+}
+
 if (Capacitor.isNativePlatform()) {
   import("@capacitor/splash-screen").then(({ SplashScreen }) => {
     SplashScreen.hide();

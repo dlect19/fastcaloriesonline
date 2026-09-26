@@ -46,7 +46,7 @@ describe('iOS Paystack return bridge', () => {
     expect(paymentCallbackUrl('/profile/wallet?funding=success', 'ios', 'capacitor://localhost'))
       .toBe('https://app.fastcalories.online/payment-return.html?target=%2Fprofile%2Fwallet%3Ffunding%3Dsuccess');
     expect(paymentCallbackUrl('https://app.fastcalories.online/cart?funded=true', 'ios')).toContain('target=%2Fcart%3Ffunded%3Dtrue');
-    expect(paymentCallbackUrl('/payment-callback', 'android', 'https://localhost')).toBe('https://app.fastcalories.online/payment-return.html?target=%2Fpayment-callback');
+    expect(paymentCallbackUrl('/payment-callback', 'android', 'https://localhost')).toBe('https://app.fastcalories.online/payment-return.html?platform=android&target=%2Fpayment-callback');
     expect(paymentCallbackUrl('/profile/wallet?funding=success', 'web', 'https://app.fastcalories.online')).toBe('https://app.fastcalories.online/profile/wallet?funding=success');
   });
   it('deep link maps to in-app path carrying the reference for server verification', () => {
@@ -98,5 +98,23 @@ describe('Android Paystack return', () => {
     expect(a).toContain('finish(fallback, false)');
     expect(a).toContain("App.addListener('appUrlOpen'");
     expect(a).not.toMatch(/verify-wallet-funding|credit/i);
+  });
+});
+
+describe('Android bridge never auto-jumps to the custom scheme', () => {
+  it('android callback carries platform flag; iOS does not', () => {
+    expect(paymentCallbackUrl('/profile/wallet', 'android')).toContain('platform=android');
+    expect(paymentCallbackUrl('/profile/wallet', 'ios')).not.toContain('platform=');
+  });
+  it('bridge page skips auto redirect for android, keeps it for iOS', () => {
+    const html = readFileSync('public/payment-return.html', 'utf8');
+    const guard = html.indexOf("q.get('platform') === 'android'");
+    const redirect = html.indexOf('setTimeout(function () { location.href = deep; }');
+    expect(guard).toBeGreaterThan(-1);
+    expect(redirect).toBeGreaterThan(guard);
+  });
+  it('Android bridge URL with Paystack params maps to wallet with reference, flag dropped', () => {
+    const cb = paymentCallbackUrl('/profile/wallet?funding=success', 'android');
+    expect(androidReturnTarget(`${cb}&trxref=r9&reference=r9`, 'localhost')).toBe('/profile/wallet?funding=success&reference=r9&trxref=r9');
   });
 });

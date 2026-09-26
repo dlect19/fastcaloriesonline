@@ -69,7 +69,11 @@ export function paymentCallbackUrl(pathOrUrl: string, platform = Capacitor.isNat
   // iOS and Android both return through the real HTTPS bridge page: the
   // Android in-app view can always load it (unlike https://localhost), and
   // we intercept it before it hands off to the custom scheme.
-  if (platform === 'ios' || platform === 'android') return `${PAYMENT_BRIDGE_URL}?target=${encodeURIComponent(path)}`;
+  if (platform === 'ios') return `${PAYMENT_BRIDGE_URL}?target=${encodeURIComponent(path)}`;
+  // Android: platform=android tells the bridge page NOT to auto-jump to the
+  // custom scheme, so the page finishes loading and browserPageNavigationCompleted
+  // fires with the bridge URL, which we intercept and close.
+  if (platform === 'android') return `${PAYMENT_BRIDGE_URL}?platform=android&target=${encodeURIComponent(path)}`;
   return `${origin}${path}`;
 }
 
