@@ -72,7 +72,7 @@ describe('planAlarmSlots — fair chronological allocation', () => {
       sched(2, ['11:00'], { status: 'paused' }),
       sched(3, ['12:00'], { end_date: '2026-09-01' }),
     ], now, 60, 1);
-    expect(plan.slots.map((s) => s.schedule.id)).toEqual(['s001', 's001']); // today + tomorrow
+    expect(plan.slots.map((s) => s.schedule.id)).toEqual(['s001']); // duplicate 10:00 collapsed; horizon ends before tomorrow 10:00
     expect(plan.slots[0].id).toBe(occurrenceId('s001', plan.slots[0].slotIso));
   });
 });
