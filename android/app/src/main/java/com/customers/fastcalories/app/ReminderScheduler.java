@@ -7,6 +7,9 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.ContentResolver;
+import android.media.AudioAttributes;
+import android.net.Uri;
 import android.os.Build;
 
 import org.json.JSONArray;
@@ -14,7 +17,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 class ReminderScheduler {
-    static final String CHANNEL_ID = "drug_reminders";
+    static final String CHANNEL_ID = "medication_alarms_v2";
     private static final String PREFS = "fastcalories_reminder_plugin";
     private static final String KEY_REMINDERS = "reminders";
 
@@ -103,10 +106,15 @@ class ReminderScheduler {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
         NotificationChannel channel = new NotificationChannel(
                 CHANNEL_ID,
-                "Medication Alarms",
+                "Medication alarms",
                 NotificationManager.IMPORTANCE_HIGH
         );
-        channel.setDescription("High-priority medication reminders");
+        channel.setDescription("Time-critical medication reminders with sound");
+        Uri sound = Uri.parse(ContentResolver.SCHEME_ANDROID_RESOURCE + "://" + context.getPackageName() + "/raw/medication_alarm");
+        channel.setSound(sound, new AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_ALARM)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build());
         channel.enableVibration(true);
 
         NotificationManager manager = context.getSystemService(NotificationManager.class);

@@ -92,12 +92,12 @@ export async function ensureDrugChannel(): Promise<void> {
   if (Capacitor.getPlatform() !== 'android') return;
   try {
     await LocalNotifications.createChannel({
-      id: 'drug_reminders',
+      id: 'medication_alarms_v2',
       name: 'Medication Alarms',
       description: 'High-priority medication reminders',
       importance: 5, // IMPORTANCE_HIGH -> heads-up + sound
       visibility: 1,
-      sound: 'alarm.wav', // optional custom sound in android/app/src/main/res/raw/alarm.wav
+      sound: 'medication_alarm.wav', // bundled in android/app/src/main/res/raw
       vibration: true,
       lights: true,
       lightColor: '#FF0000',
@@ -160,8 +160,8 @@ export async function scheduleDrugAlarms(reminders: ReminderRow[]): Promise<{ sc
           title: `💊 Time to take ${r.drug_name}`,
           body: r.dosage ? `Take ${r.dosage}` : 'Tap to log your dose',
           schedule: { at, allowWhileIdle: true },
-          channelId: 'drug_reminders',
-          sound: 'alarm.wav',
+          channelId: 'medication_alarms_v2',
+          sound: Capacitor.getPlatform() === 'android' ? 'medication_alarm.wav' : undefined,
           smallIcon: 'ic_stat_fastcalories',
           extra: { kind: 'drug_reminder', reminder_id: r.id, url: '/drug-tracker' },
         });
