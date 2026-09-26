@@ -66,7 +66,10 @@ export function paymentCallbackUrl(pathOrUrl: string, platform = Capacitor.isNat
     if (/^[a-z][a-z0-9+.-]*:/i.test(pathOrUrl)) { const u = new URL(pathOrUrl); path = `${u.pathname}${u.search}${u.hash}`; }
   } catch { /* keep as-is */ }
   path = safeReturnPath(path, '/');
-  if (platform === 'ios') return `${PAYMENT_BRIDGE_URL}?target=${encodeURIComponent(path)}`;
+  // iOS and Android both return through the real HTTPS bridge page: the
+  // Android in-app view can always load it (unlike https://localhost), and
+  // we intercept it before it hands off to the custom scheme.
+  if (platform === 'ios' || platform === 'android') return `${PAYMENT_BRIDGE_URL}?target=${encodeURIComponent(path)}`;
   return `${origin}${path}`;
 }
 
@@ -89,6 +92,27 @@ export function paymentReturnTarget(rawUrl: string | undefined): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Android in-app view: maps a navigated URL (bridge page, custom-scheme deep
+ * link, or a direct callback on our own host) to an in-app path carrying the
+ * Paystack reference. Returns null for Paystack/bank/3DS pages. Exported for tests.
+ */
+export function androidReturnTarget(rawUrl: string | undefined, currentHost = typeof window !== 'undefined' ? window.location.host : ''): string | null {
+  if (!rawUrl) return null;
+  const deep = paymentReturnTarget(rawUrl);
+  if (deep) return deep;
+  if (rawUrl.toLowerCase().startsWith(PAYMENT_BRIDGE_URL.toLowerCase())) {
+    try {
+      const q = new URL(rawUrl).search.replace(/^\?/, '');
+      return paymentReturnTarget(`${NATIVE_APP_SCHEME}://payment-return?${q}`);
+    } catch { return null; }
+  }
+  if (classifyPaymentNavigation(rawUrl, currentHost) === 'callback') {
+    try { const u = new URL(rawUrl); return `${u.pathname}${u.search}${u.hash}`; } catch { return null; }
+  }
+  return null;
 }
 
 let activeSession = false;
@@ -133,30 +157,40 @@ async function openNative(url: string, opts: OpenPaymentOptions): Promise<void> 
     await Promise.all(handles.map((h) => h.remove().catch(() => undefined)));
   };
 
+  const finish = async (target: string | null, closeView: boolean) => {
+    if (finished) return;
+    finished = true;
+    if (closeView) { try { await InAppBrowser.close(); } catch { /* already closed */ } }
+    await cleanup();
+    // Route inside the app; the target screen verifies with the server.
+    if (target) routeInApp(target);
+    else opts.onCancelled?.();
+  };
+  const fallback = opts.returnPath ?? null;
+
   handles.push(
     await InAppBrowser.addListener('browserPageNavigationCompleted', async (data) => {
-      const kind = classifyPaymentNavigation(data?.url);
-      if (!kind || finished) return;
-      finished = true;
-      try { await InAppBrowser.close(); } catch { /* already closed */ }
-      await cleanup();
-      if (kind === 'callback' && data.url) {
-        const u = new URL(data.url);
-        // Route inside the app; the target screen verifies with the server.
-        routeInApp(`${u.pathname}${u.search}${u.hash}`);
-      } else if (opts.returnPath) {
-        routeInApp(opts.returnPath);
-      } else {
-        opts.onCancelled?.();
-      }
+      if (finished) return;
+      const target = androidReturnTarget(data?.url);
+      if (target) return finish(target, true);
+      if (classifyPaymentNavigation(data?.url) === 'close') return finish(fallback, true);
     }),
   );
+  // Bridge page hand-off to the custom scheme (if the view lets it through).
+  try {
+    handles.push(
+      await App.addListener('appUrlOpen', async ({ url: incoming }) => {
+        const target = paymentReturnTarget(incoming);
+        if (target) await finish(target, true);
+      }),
+    );
+  } catch (e) { console.warn('appUrlOpen listener unavailable', e); }
   handles.push(
     await InAppBrowser.addListener('browserClosed', async () => {
-      if (finished) return;
-      finished = true;
-      await cleanup();
-      opts.onCancelled?.();
+      // Cancel/back: return to the wallet (which re-checks with the server)
+      // instead of stranding the customer on the previous screen.
+      if (fallback) opts.onCancelled?.();
+      await finish(fallback, false);
     }),
   );
 
