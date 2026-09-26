@@ -16,7 +16,7 @@ p{color:#3f6212;font-size:15px}
 <h1>Returning to FastCalories…</h1>
 <p>We'll confirm your payment in the app. Nothing is charged or credited from this page.</p>
 <a class="btn" id="open" href="#">Open FastCalories</a>
-<p style="font-size:13px">If the app doesn't open, tap the button above, or tap Done.</p>
+<p id="hint" style="font-size:13px">If the app doesn't open, tap the button above, or tap Done.</p>
 </main>
 <script>
 // Hand-off only: the app re-verifies the reference with the server.
@@ -29,6 +29,14 @@ p{color:#3f6212;font-size:15px}
   ['reference', 'trxref'].forEach(function (k) { var v = q.get(k); if (v) out.set(k, v); });
   var deep = 'com.customers.fastcalories.app://payment-return?' + out.toString();
   document.getElementById('open').setAttribute('href', deep);
+  // Android: the app's in-app view intercepts this page once it has fully
+  // loaded. Auto-jumping to the custom scheme there aborts the load and shows
+  // "Couldn't load the page", so Android never auto-redirects.
+  if (q.get('platform') === 'android') {
+    document.getElementById('open').style.display = 'none';
+    document.getElementById('hint').textContent = 'Closing automatically. If not, tap Cancel.';
+    return;
+  }
   setTimeout(function () { location.href = deep; }, 50);
 })();
 </script>
