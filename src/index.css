@@ -268,3 +268,7 @@
 .pac-container {
   z-index: 100000 !important;
 }
+
+/* Android Capacitor app only: hide scrollbars, keep scrolling. */
+html.cap-android, html.cap-android * { scrollbar-width: none; }
+html.cap-android::-webkit-scrollbar, html.cap-android *::-webkit-scrollbar { display: none; width: 0; height: 0; }
