@@ -29,12 +29,18 @@ p{color:#3f6212;font-size:15px}
   ['reference', 'trxref'].forEach(function (k) { var v = q.get(k); if (v) out.set(k, v); });
   var deep = 'com.customers.fastcalories.app://payment-return?' + out.toString();
   document.getElementById('open').setAttribute('href', deep);
-  // Android: the app's in-app view intercepts this page once it has fully
-  // loaded. Auto-jumping to the custom scheme there aborts the load and shows
-  // "Couldn't load the page", so Android never auto-redirects.
+  // Android in-app view: a bare custom-scheme navigation is loaded as a page
+  // ("Couldn't load the page"), but its WebViewClient launches `intent:` URLs
+  // as a real Android intent. That reopens the app (appUrlOpen), which closes
+  // the view and verifies the reference with the server. Fires only after this
+  // page has finished loading, so the page-completed event can still win.
   if (q.get('platform') === 'android') {
-    document.getElementById('open').style.display = 'none';
-    document.getElementById('hint').textContent = 'Closing automatically. If not, tap Cancel.';
+    var intentUrl = 'intent://payment-return?' + out.toString() +
+      '#Intent;scheme=com.customers.fastcalories.app;package=com.customers.fastcalories.app;end';
+    document.getElementById('open').setAttribute('href', intentUrl);
+    document.getElementById('hint').textContent = 'Closing automatically. If not, tap Open FastCalories.';
+    var go = function () { setTimeout(function () { location.href = intentUrl; }, 400); };
+    if (document.readyState === 'complete') go(); else window.addEventListener('load', go);
     return;
   }
   setTimeout(function () { location.href = deep; }, 50);
