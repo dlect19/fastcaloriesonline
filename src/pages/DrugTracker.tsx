@@ -31,7 +31,7 @@ import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
 import { useMedicationReminders, Occurrence } from '@/hooks/useMedicationReminders';
 import { MedicationScheduleDialog, ScheduleDraft } from '@/components/pharmacy/MedicationScheduleDialog';
 import { MedicationSettingsDialog } from '@/components/pharmacy/MedicationSettingsDialog';
-import { isNativeAlarmPlatform } from '@/lib/medicationAlarms';
+import { isNativeAlarmPlatform, openExactAlarmSettings, SyncResult } from '@/lib/medicationAlarms';
 
 type Tab = 'today' | 'schedules' | 'history';
 
