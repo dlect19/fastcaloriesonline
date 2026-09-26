@@ -99,7 +99,8 @@ public class FastCaloriesMessagingService extends FirebaseMessagingService {
         Uri ringtone = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(ctx, CALL_CHANNEL_ID)
-                .setSmallIcon(R.mipmap.ic_launcher)
+                .setSmallIcon(R.drawable.ic_stat_fastcalories)
+                .setColor(androidx.core.content.ContextCompat.getColor(ctx, R.color.notificationAccent))
                 .setContentTitle(title)
                 .setContentText(body)
                 .setPriority(NotificationCompat.PRIORITY_MAX)

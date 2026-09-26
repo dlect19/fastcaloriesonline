@@ -389,14 +389,14 @@ export default function DrugTracker() {
         mode="review"
         draft={reviewing}
         onConfirm={async (times, patch) => {
-          if (!reviewing?.id) return;
+          if (!reviewing?.id) return { error: 'This reminder is no longer available.' };
           const res = await activateSchedule(reviewing.id, times, patch);
           toast(
             res.error
               ? { title: 'Could not activate', description: res.error, variant: 'destructive' }
               : { title: 'Reminders activated', description: 'Your device will now alert you at these times.' },
           );
-          setReviewing(null);
+          return res;
         }}
       />
 
@@ -411,6 +411,7 @@ export default function DrugTracker() {
               ? { title: 'Could not save', description: res.error, variant: 'destructive' }
               : { title: 'Reminder created' },
           );
+          return res;
         }}
       />
 
