@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { dosesPerDayFromFrequency } from '@/lib/drugReminderPayload';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,7 +29,8 @@ interface Props {
   onOpenChange: (v: boolean) => void;
   mode: 'review' | 'manual';
   draft?: ScheduleDraft | null;
-  onConfirm: (times: string[], patch: Record<string, any>) => Promise<void>;
+  /** Resolve with `{ error }` to keep the dialog open and show the problem. */
+  onConfirm: (times: string[], patch: Record<string, any>) => Promise<{ error?: string } | void>;
 }
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
@@ -42,6 +44,8 @@ export function MedicationScheduleDialog({ open, onOpenChange, mode, draft, onCo
   const [startDate, setStartDate] = useState(todayIso());
   const [endDate, setEndDate] = useState('');
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const inFlight = useRef(false);
 
   useEffect(() => {
     if (!open) return;
@@ -53,9 +57,11 @@ export function MedicationScheduleDialog({ open, onOpenChange, mode, draft, onCo
     setStartDate(draft?.start_date || todayIso());
     setEndDate(draft?.end_date || '');
     setSaving(false);
+    setError(null);
+    inFlight.current = false;
   }, [open, draft]);
 
-  const expected = draft?.doses_per_day ?? null;
+  const expected = draft?.doses_per_day ?? dosesPerDayFromFrequency(draft?.frequency);
   const isReview = mode === 'review';
   const canSubmit = times.length > 0 && (isReview || name.trim().length > 1);
 
@@ -64,29 +70,41 @@ export function MedicationScheduleDialog({ open, onOpenChange, mode, draft, onCo
   const removeTime = (i: number) => setTimes((t) => t.filter((_, idx) => idx !== i));
 
   const submit = async () => {
+    if (inFlight.current) return; // block double taps
+    inFlight.current = true;
     setSaving(true);
+    setError(null);
     const sorted = [...times].sort();
-    await onConfirm(
-      sorted,
-      isReview
-        ? { times_needed: false }
-        : {
-            drug_name: name.trim(),
-            strength: strength.trim() || null,
-            dosage: dosage.trim() || null,
-            instructions: instructions.trim() || null,
-            frequency: `${sorted.length}x_daily`,
-            start_date: startDate,
-            end_date: endDate || null,
-            times_needed: false,
-          },
-    );
+    // Review mode only chooses times; prescribed instructions are never sent.
+    const patch = isReview
+      ? {}
+      : {
+          drug_name: name.trim(),
+          notes: strength.trim() ? `Strength: ${strength.trim()}` : null,
+          dosage: dosage.trim() || null,
+          instructions: instructions.trim() || null,
+          frequency: `${sorted.length}x_daily`,
+          start_date: startDate,
+          end_date: endDate || null,
+        };
+    let failure: string | null = null;
+    try {
+      const res = await onConfirm(sorted, patch);
+      if (res && res.error) failure = res.error;
+    } catch (e: any) {
+      failure = e?.message || 'Something went wrong. Please try again.';
+    }
+    inFlight.current = false;
     setSaving(false);
+    if (failure) {
+      setError(failure);
+      return;
+    }
     onOpenChange(false);
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => !saving && onOpenChange(v)}>
       <DialogContent className="max-w-md max-h-[88vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isReview ? 'Review your reminder' : 'Add a medication reminder'}</DialogTitle>
@@ -204,8 +222,14 @@ export function MedicationScheduleDialog({ open, onOpenChange, mode, draft, onCo
           )}
         </div>
 
+        {error && (
+          <p role="alert" className="text-sm text-destructive rounded-md border border-destructive/40 bg-destructive/10 p-2">
+            Could not save: {error}
+          </p>
+        )}
+
         <DialogFooter className="gap-2 sm:gap-2">
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>
+          <Button variant="ghost" disabled={saving} onClick={() => onOpenChange(false)}>
             Not now
           </Button>
           <Button disabled={!canSubmit || saving} onClick={submit}>
