@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { resolveOfferTtlSeconds } from '../_shared/dispatchTtl.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -47,7 +48,7 @@ async function escalateToNextTier(
   
   const settingsMap: Record<string, string> = {};
   settings?.forEach((s: any) => { settingsMap[s.key] = s.value; });
-  const timeoutSeconds = parseInt(settingsMap.dispatch_acceptance_timeout_seconds || '60');
+  const timeoutSeconds = resolveOfferTtlSeconds(settingsMap.dispatch_acceptance_timeout_seconds);
 
   const vehicleDispatchRadii: Record<string, number | null> = {};
   (vehicleConfigs || []).forEach((c: any) => {

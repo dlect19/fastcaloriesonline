@@ -253,6 +253,20 @@
       "when": 1790164746258,
       "tag": "0035_allow_dispatch_rounds_per_order",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1790681884099,
+      "tag": "0036_dispatch_sweep_allowed_status_and_prepare_round",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1790682139631,
+      "tag": "0037_restrict_rider_payout_details_insert",
+      "breakpoints": true
     }
   ]
 }

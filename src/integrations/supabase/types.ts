@@ -11336,6 +11336,7 @@ export type Database = {
           wallets_checked: number
         }[]
       }
+      dispatch_prepare_round: { Args: { p_order_id: string }; Returns: Json }
       dispatch_sweep_expiry: { Args: { p_limit?: number }; Returns: Json }
       ensure_event_organizer_wallet: {
         Args: { _organizer_id: string }

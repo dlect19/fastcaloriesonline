@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { isStaleFcmTokenResponse } from "../_shared/dispatchPush.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -205,7 +206,7 @@ async function sendFcmNotification(
   title: string,
   body: string,
   data?: Record<string, string>
-): Promise<{ success: boolean; status: number }> {
+): Promise<{ success: boolean; status: number; bodyText: string }> {
   const serviceAccountJson = Deno.env.get('FIREBASE_SERVICE_ACCOUNT_JSON');
   const sa = JSON.parse(serviceAccountJson!);
   const projectId = sa.project_id;
@@ -255,7 +256,8 @@ async function sendFcmNotification(
     }
   );
   
-  return { success: response.ok, status: response.status };
+  const bodyText = response.ok ? '' : await response.text().catch(() => '');
+  return { success: response.ok, status: response.status, bodyText };
 }
 
 // ─── Main handler ───────────────────────────────────────────────────
@@ -270,7 +272,9 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { user_id, user_ids, title, body, data, url } = await req.json();
+    const { user_id, user_ids, title, body, data, url, per_user_data } = await req.json();
+    const perUser: Record<string, Record<string, string>> =
+      per_user_data && typeof per_user_data === 'object' ? per_user_data : {};
 
     const targetUserIds = user_ids || (user_id ? [user_id] : []);
     if (targetUserIds.length === 0) {
@@ -285,8 +289,11 @@ serve(async (req) => {
       .in('user_id', targetUserIds);
 
     if (error) throw error;
+    const subscribedUserIds = new Set((subscriptions || []).map((s: any) => s.user_id));
+    const noSubscriptionCount = (targetUserIds as string[]).filter((id) => !subscribedUserIds.has(id)).length;
     if (!subscriptions || subscriptions.length === 0) {
-      return new Response(JSON.stringify({ sent: 0, message: 'No subscriptions found' }), {
+      console.log(`No subscriptions for ${targetUserIds.length} target user(s)`);
+      return new Response(JSON.stringify({ sent: 0, failed: 0, cleaned: 0, target_count: targetUserIds.length, no_subscription_count: noSubscriptionCount, message: 'No subscriptions found' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
@@ -296,7 +303,7 @@ serve(async (req) => {
 
     let sent = 0;
     let failed = 0;
-    const expiredEndpoints: string[] = [];
+    const staleSubscriptionIds: string[] = [];
 
     for (const sub of subscriptions) {
       try {
@@ -305,17 +312,18 @@ serve(async (req) => {
           const dataPayload: Record<string, string> = {
             url: url || '/',
             ...(data ? Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)])) : {}),
+            ...(perUser[sub.user_id] || {}),
           };
           
           const result = await sendFcmNotification(sub.fcm_token, notifTitle, notifBody, dataPayload);
           
           if (result.success) {
             sent++;
-          } else if (result.status === 404 || result.status === 410) {
-            expiredEndpoints.push(sub.endpoint);
+          } else if (isStaleFcmTokenResponse(result.status, result.bodyText)) {
+            staleSubscriptionIds.push(sub.id);
             failed++;
           } else {
-            console.error(`FCM failed for token: ${result.status}`);
+            console.error(`FCM send failed: HTTP ${result.status}`);
             failed++;
           }
         } else {
@@ -325,7 +333,7 @@ serve(async (req) => {
             body: notifBody,
             icon: '/images/fast-calories-logo.png',
             badge: '/pwa-192x192.png',
-            data: { url: url || '/', ...data },
+            data: { url: url || '/', ...data, ...(perUser[sub.user_id] || {}) },
           });
           
           const response = await sendWebPush(
@@ -336,10 +344,10 @@ serve(async (req) => {
           if (response.status === 201 || response.status === 200) {
             sent++;
           } else if (response.status === 404 || response.status === 410) {
-            expiredEndpoints.push(sub.endpoint);
+            staleSubscriptionIds.push(sub.id);
             failed++;
           } else {
-            console.error(`Push failed for ${sub.endpoint}: ${response.status}`);
+            console.error(`Web push failed: HTTP ${response.status}`);
             failed++;
           }
         }
@@ -349,14 +357,16 @@ serve(async (req) => {
       }
     }
 
-    if (expiredEndpoints.length > 0) {
+    // Delete only the exact subscriptions proven dead — never other devices.
+    if (staleSubscriptionIds.length > 0) {
       await supabase
         .from('push_subscriptions')
         .delete()
-        .in('endpoint', expiredEndpoints);
+        .in('id', staleSubscriptionIds);
     }
+    console.log(`Push result: sent=${sent} failed=${failed} cleaned=${staleSubscriptionIds.length} targets=${targetUserIds.length} no_subscription=${noSubscriptionCount}`);
 
-    return new Response(JSON.stringify({ sent, failed, cleaned: expiredEndpoints.length }), {
+    return new Response(JSON.stringify({ sent, failed, cleaned: staleSubscriptionIds.length, target_count: targetUserIds.length, no_subscription_count: noSubscriptionCount }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {

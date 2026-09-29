@@ -116,3 +116,9 @@
 - [x] Startup order-sound fix: silent unlock, event gate/dedupe, silent baselines, consolidated listeners, SW explicit events, Capacitor cleanup, tests, publish
 
 - [x] Customer/staff order-sound separation: bell removed from customer home, no global gesture audio, portal-only lazy order audio, PWA one-time reload, bundle guard, native web assets refreshed, published (index-B4Z4_zkB.js)
+
+## Rider search recovery (FC-260929-9614)
+- [x] Sweep uses allowed statuses, per-row isolation (migration 0036)
+- [x] dispatch-order: live round returned untouched; stale rounds expired first
+- [x] 90s offer TTL floor; stale FCM cleanup; no-subscription reporting; DISPATCH_OFFER payload
+- [x] Rider "Notifications are off" warning
