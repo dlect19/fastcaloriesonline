@@ -10,6 +10,7 @@ import { useRiderLocation } from '@/hooks/useRiderLocation';
 import { useEnsureLocationPermissions } from '@/hooks/useEnsureLocationPermissions';
 import { useDispatchOffers } from '@/hooks/useDispatchOffers';
 import { useFreshActionable } from '@/hooks/useFreshActionable';
+import { RiderNotificationWarning } from './RiderNotificationWarning';
 
 
 interface RiderLayoutProps {
@@ -122,6 +123,7 @@ export function RiderLayout({ children, isOnline, onToggleOnline, canViewEarning
       <div className="min-h-screen bg-background flex flex-col">
         <RiderMobileHeader isOnline={isOnline} onToggleOnline={handleToggleOnline} />
         <main className="flex-1 p-4 pb-36">
+          <RiderNotificationWarning userId={riderId} />
           {children}
         </main>
         <RiderBottomNav isOnline={isOnline} onToggleOnline={handleToggleOnline} canViewEarnings={canViewEarnings} />

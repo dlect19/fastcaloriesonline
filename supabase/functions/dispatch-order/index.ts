@@ -3,6 +3,8 @@ import { getGoogleMapsDistance, haversineDistance } from '../_shared/google-maps
 import { resolveDestination } from '../_shared/dispatchDestination.ts';
 import { countRiderActiveOrders } from '../_shared/riderCapacity.ts';
 import { isLiveRoundConflict } from '../_shared/dispatchConflict.ts';
+import { resolveOfferTtlSeconds } from '../_shared/dispatchTtl.ts';
+import { buildDispatchPushRequest } from '../_shared/dispatchPush.ts';
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -103,7 +105,7 @@ async function getDispatchSettings(supabase: any) {
   data?.forEach((s: any) => { settings[s.key] = s.value; });
 
   return {
-    acceptanceTimeoutSeconds: parseInt(settings.dispatch_acceptance_timeout_seconds || '60'),
+    acceptanceTimeoutSeconds: resolveOfferTtlSeconds(settings.dispatch_acceptance_timeout_seconds),
     initialRadiusKm: parseFloat(settings.dispatch_initial_radius_km || '5'),
     maxRetries: parseInt(settings.dispatch_max_retries || '3'),
     enablePriorityTiers: settings.dispatch_enable_priority_tiers !== 'false',
@@ -426,30 +428,45 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Retire previous dispatch attempts WITHOUT destroying audit history:
-    // pending offers/requests are marked expired/superseded, never deleted.
-    const { data: existingDispatches } = await supabase
-      .from('dispatch_requests')
-      .select('id, status')
-      .eq('order_id', orderId);
-
-    const supersededRequestIds: string[] = [];
-    for (const existingDispatch of existingDispatches || []) {
-      if (existingDispatch.status === 'accepted') continue;
-      await supabase
-        .from('dispatch_offers')
-        .update({ status: 'superseded', responded_at: new Date().toISOString() })
-        .eq('dispatch_request_id', existingDispatch.id)
-        .in('status', ['pending']);
-      await supabase
-        .from('dispatch_requests')
-        .update({ status: 'superseded' })
-        .eq('id', existingDispatch.id)
-        .neq('status', 'accepted');
-      supersededRequestIds.push(existingDispatch.id);
+    // Decide atomically (per-order lock in the database) whether a genuinely
+    // live round exists. A live round is returned untouched — its offers are
+    // never superseded. Stale rounds (past expiry, or with no live offers) are
+    // expired together with their pending offers before a fresh round is made.
+    const { data: prep, error: prepError } = await supabase.rpc('dispatch_prepare_round', {
+      p_order_id: orderId,
+    });
+    if (prepError) {
+      console.error('dispatch_prepare_round failed:', prepError);
+      throw prepError;
     }
+    const prepResult = (prep || {}) as Record<string, any>;
+    if (prepResult.action === 'accepted') {
+      return new Response(
+        JSON.stringify({ error: 'A rider has already accepted this order.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    if (prepResult.action === 'live') {
+      console.log(`Live dispatch round still valid for order ${orderId} — returning it`);
+      return new Response(
+        JSON.stringify({
+          success: true,
+          alreadyRunning: true,
+          message: 'A rider search is already running for this order.',
+          dispatchRequestId: prepResult.dispatch_request_id ?? null,
+          status: prepResult.status ?? 'pending',
+          expiresAt: prepResult.expires_at ?? null,
+          searchRadiusKm: prepResult.search_radius_km ?? null,
+          retryRound: prepResult.retry_round ?? null,
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    const supersededRequestIds: string[] = Array.isArray(prepResult.retired_request_ids)
+      ? prepResult.retired_request_ids
+      : [];
     if (supersededRequestIds.length > 0) {
-      console.log(`Superseded ${supersededRequestIds.length} previous dispatch request(s)`);
+      console.log(`Retired ${supersededRequestIds.length} stale dispatch round(s)`);
     }
 
     const vendor = order.vendors as any;
@@ -502,7 +519,7 @@ Deno.serve(async (req) => {
 
     const configuredRadiusKm = parseFloat(settingsMap.dispatch_initial_radius_km || '5');
     const dispatchSettings = {
-      acceptanceTimeoutSeconds: parseInt(settingsMap.dispatch_acceptance_timeout_seconds || '60'),
+      acceptanceTimeoutSeconds: resolveOfferTtlSeconds(settingsMap.dispatch_acceptance_timeout_seconds),
       initialRadiusKm:
         typeof requestedRadiusKm === 'number' && Number.isFinite(requestedRadiusKm) && requestedRadiusKm > 0
           ? requestedRadiusKm
@@ -670,12 +687,17 @@ Deno.serve(async (req) => {
     }));
 
     if (offers.length > 0) {
-      const { error: offersError } = await supabase.from('dispatch_offers').insert(offers);
+      const { data: createdOffers, error: offersError } = await supabase
+        .from('dispatch_offers')
+        .insert(offers)
+        .select('id, rider_user_id');
       if (offersError) {
         console.error('Error creating dispatch offers:', offersError);
-      } else {
-        console.log(`Created ${offers.length} dispatch offers with hybrid payout`);
+        // Never leave a pending round with no offers behind.
+        await supabase.from('dispatch_requests').update({ status: 'expired' }).eq('id', dispatchRequest.id);
+        throw offersError;
       }
+      console.log(`Created ${offers.length} dispatch offers with hybrid payout`);
 
       // Send push notifications to all eligible riders
       const riderUserIds = eligibleRiders.map(r => r.user_id);
@@ -688,21 +710,17 @@ Deno.serve(async (req) => {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${supabaseKey}`,
             },
-            body: JSON.stringify({
-              user_ids: riderUserIds,
-              title: '🚴 New Delivery Request!',
-              body: `New order from ${pickupName} — ₦${payout.finalRiderPay} payout`,
-              data: {
-                tag: 'dispatch-offer',
-                role: 'rider',
-                channel_id: 'rider-orders',
-              },
-              url: '/rider/available-orders',
-            }),
+            body: JSON.stringify(buildDispatchPushRequest({
+              riderUserIds,
+              dispatchRequestId: dispatchRequest.id,
+              offers: createdOffers || [],
+              pickupName,
+              riderPay: payout.finalRiderPay,
+            })),
           }
         );
         const notifResult = await notifResponse.json();
-        console.log(`Push notifications sent: ${notifResult.sent} sent, ${notifResult.failed} failed`);
+        console.log(`Push notifications: ${notifResult.sent ?? 0} sent, ${notifResult.failed ?? 0} failed, ${notifResult.cleaned ?? 0} stale removed, ${notifResult.no_subscription_count ?? 0} of ${riderUserIds.length} riders without a device subscription`);
       } catch (pushErr) {
         console.error('Failed to send push notifications to riders:', pushErr);
       }
