@@ -122,3 +122,11 @@
 - [x] dispatch-order: live round returned untouched; stale rounds expired first
 - [x] 90s offer TTL floor; stale FCM cleanup; no-subscription reporting; DISPATCH_OFFER payload
 - [x] Rider "Notifications are off" warning
+
+## Vendor wallet ledger guards (2026-10-02)
+- [x] Full-ledger reconcile (buckets only, freezes on drift), payout ledger guard + drift freeze, payout↔ledger constraint trigger
+- [x] Daily drift job freezes drifted wallets; step-up correction RPC + dry-run preview
+- [x] Page loads (Admin Payouts, Vendor Withdraw) read-only
+- [x] Audited corrections: TOP KITCHEN, Taste Affairs, Olive Food; historical note for payout 62423211
+- [ ] Admin UI button for preview → step-up correction (RPCs ready; not yet wired)
+- [ ] Wallet 4dbb51c4 has stale pending bucket (no drift); left untouched per scope

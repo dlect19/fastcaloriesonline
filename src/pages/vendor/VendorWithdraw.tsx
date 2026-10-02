@@ -175,16 +175,7 @@ export default function VendorWithdraw() {
         .eq('outlet_id', selectedOutletId)
         .maybeSingle();
 
-      // Reconcile to release any funds whose settlement hold has passed
-      if (walletData?.id) {
-        await supabase.rpc('reconcile_vendor_wallet', { p_wallet_id: walletData.id });
-        const { data: refreshed } = await supabase
-          .from('wallets')
-          .select('*')
-          .eq('id', walletData.id)
-          .maybeSingle();
-        if (refreshed) Object.assign(walletData, refreshed);
-      }
+      // Read-only: balances are recomputed server-side (release job / payout trigger).
 
       if (walletData) {
         // Use test columns if in test mode, otherwise production columns

@@ -9971,6 +9971,9 @@ export type Database = {
           menu_earnings_pending: number | null
           organizer_id: string | null
           outlet_id: string | null
+          payout_frozen: boolean
+          payout_frozen_at: string | null
+          payout_frozen_reason: string | null
           paystack_customer_code: string | null
           paystack_customer_id: number | null
           paystack_recipient_code: string | null
@@ -10013,6 +10016,9 @@ export type Database = {
           menu_earnings_pending?: number | null
           organizer_id?: string | null
           outlet_id?: string | null
+          payout_frozen?: boolean
+          payout_frozen_at?: string | null
+          payout_frozen_reason?: string | null
           paystack_customer_code?: string | null
           paystack_customer_id?: number | null
           paystack_recipient_code?: string | null
@@ -10055,6 +10061,9 @@ export type Database = {
           menu_earnings_pending?: number | null
           organizer_id?: string | null
           outlet_id?: string | null
+          payout_frozen?: boolean
+          payout_frozen_at?: string | null
+          payout_frozen_reason?: string | null
           paystack_customer_code?: string | null
           paystack_customer_id?: number | null
           paystack_recipient_code?: string | null
@@ -11100,6 +11109,15 @@ export type Database = {
         }
         Returns: Json
       }
+      admin_correct_vendor_wallet_drift: {
+        Args: {
+          p_expected_drift: number
+          p_reason: string
+          p_step_up_token: string
+          p_wallet_id: string
+        }
+        Returns: Json
+      }
       admin_credit_company_account: {
         Args: {
           p_amount: number
@@ -11189,7 +11207,22 @@ export type Database = {
         Args: { p_settings: Json }
         Returns: Json
       }
+      admin_vendor_wallet_drift_preview: {
+        Args: { p_environment?: string; p_wallet_id: string }
+        Returns: Json
+      }
       apply_vendor_commission_promos: { Args: never; Returns: undefined }
+      apply_vendor_wallet_correction_internal: {
+        Args: {
+          p_actor_id: string
+          p_actor_label: string
+          p_auth_method: string
+          p_expected_drift: number
+          p_reason: string
+          p_wallet_id: string
+        }
+        Returns: Json
+      }
       approve_prescription_item: {
         Args: { _notes?: string; _prescription_id: string }
         Returns: undefined
@@ -11925,6 +11958,10 @@ export type Database = {
             Args: { p_earned_at?: string; p_wallet_id?: string }
             Returns: string
           }
+      wallet_ledger_net: {
+        Args: { p_environment: string; p_wallet_id: string }
+        Returns: number
+      }
       whatsapp_cancel_pending_order: {
         Args: { p_order_number?: string; p_user_id: string }
         Returns: Json

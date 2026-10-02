@@ -18,6 +18,7 @@ const ALLOWED_ACTIONS = new Set([
   "payout_process",
   "financial_reset",
   "payment_hold_resolve",
+  "vendor_wallet_reconcile",
   // roles & accounts
   "role_grant",
   "role_revoke",

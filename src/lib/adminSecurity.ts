@@ -7,6 +7,7 @@ export type StepUpAction =
   | 'payout_process'
   | 'financial_reset'
   | 'payment_hold_resolve'
+  | 'vendor_wallet_reconcile'
   | 'role_grant'
   | 'role_revoke'
   | 'staff_create'
@@ -32,6 +33,7 @@ export const STEP_UP_LABELS: Record<StepUpAction, string> = {
   payout_process: 'Process a payout',
   financial_reset: 'Run a destructive financial tool',
   payment_hold_resolve: 'Resolve a payment hold',
+  vendor_wallet_reconcile: 'Correct a vendor wallet to its ledger',
   role_grant: 'Grant a portal role',
   role_revoke: 'Remove a portal role',
   staff_create: 'Create an admin staff account',
