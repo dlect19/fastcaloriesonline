@@ -1,62 +1,31 @@
-# Vendor withdrawable-balance drift: findings and amendment plan (read-only so far)
+# Olive Food manual payout failure: diagnosis and fix plan
 
-## Result table (production, 2026-10-02)
+## What happened
+The admin tried to pay out ₦12,380 three times (about 19:48–19:49 UTC). Each attempt was rejected by the database. Nothing was saved: no payout record, no ledger debit, no Paystack transfer. The wallet is unchanged: balance ₦12,380, menu earnings ₦12,380, pending payouts ₦0, not frozen.
 
-| Wallet | Displayed / withdrawable (balance = eligible) | Ledger-supported (completed prod net) | Overstated | menu_earnings_balance (stored) |
-|---|---|---|---|---|
-| TOP KITCHEN 1bb29c33… | ₦6,920 | ₦0 | ₦6,920 | -₦1,240 |
-| Taste Affairs Main 575d115f… | ₦12,380 | ₦3,630 | ₦8,750 | -₦20,455 |
-| All other 24 vendor wallets | match | match | ₦0 | — |
-| Total | | | ₦15,670 | |
+## Evidence
+- The process-payout logs show the same error three times, for payouts b4f669cf…, eca79487… and 0033dd88…: `P0001 PAYOUT_LEDGER_MISMATCH: payout … has 0 matching ledger debits (expected 1)`, followed by "Error creating admin vendor payout request". The app then returns error 500, which the screen shows as "non-2xx".
+- The database has no payout_requests rows with those IDs and no `PAYOUT-REQ-…` ledger rows. The whole attempt was rolled back.
+- The code never reached Paystack. The transfer call only runs after the payout record is saved, and saving failed.
+- The freeze and drift checks passed. If either had blocked the payout, the error would have said PAYOUT_FROZEN or PAYOUT_FROZEN_LEDGER_DRIFT. The amount check also passed.
+- No production payout has succeeded since migration 0038 went live; the last one was on 2026-09-25. Every payout would fail the same way, for both vendors and riders.
 
-Drift was checked per wallet id, so wallets that share a user id were not counted twice.
+## Root cause: a bug in the new matching-debit check
+1. In `payout_requests`, the `environment` column defaults to `'development'`, and process-payout doesn't set it.
+2. `deduct_wallet_on_payout_request` runs after the row is inserted. It sets `NEW.environment := 'production'` and writes the ledger debit with `environment='production'`. But changing NEW in an after-insert trigger doesn't change the saved row, so the payout row keeps `'development'`.
+3. At commit, the deferred check `assert_payout_has_ledger_debit` reads the saved row's `environment` (`'development'`). It then looks for a debit with `environment='development'`, finds 0, and rolls everything back.
 
-## Root cause (confirmed)
+The problem isn't timing or ordering, and it isn't a real accounting mismatch. The two functions disagree about the environment. The real debit exists inside the attempt, but it's labelled production while the payout row says development.
 
-`reconcile_vendor_wallet()` rebuilds `balance`, `eligible_balance` and `menu_earnings_balance` from only some of the ledger categories:
-- It counts `vendor_share`/`voucher_sale` credits, "Menu Earnings" withdrawals and their reversals, and `admin_credit`/`admin_debit`.
-- It ignores three kinds of debit: `dispute_deduction`, `adjustment`, and `vendor_share` debits (refunds and clawbacks).
-- It floors the result at 0.
+## Minimal safe fix (needs your approval)
+One additive migration, with no data changes:
+1. Add a before-insert trigger on `payout_requests` that sets `NEW.environment` from `get_platform_environment()`. This makes the saved row match the debit.
+2. Change `assert_payout_has_ledger_debit` to match on wallet, reference, category, type, status and amount, and to use the debit's environment rather than the row's. The rule of exactly one completed debit stays unchanged.
+3. Keep all other safeguards as they are: freeze, drift and amount limits, and the deferred one-debit rule.
+4. Add tests that a production payout insert creates one debit and commits, and that a missing debit still fails.
 
-Running that formula on today's rows gives exactly ₦6,920 for TOP KITCHEN and ₦12,380 for Taste Affairs, the same as the stored balances. So the drift equals the ignored debits:
-- **TOP KITCHEN:** adjustment ₦400 + dispute deductions ₦2,100 + vendor_share debits ₦4,420 = **₦6,920**
-- **Taste Affairs:** dispute deductions ₦2,700 + vendor_share debits ₦6,050 = **₦8,750**
+No retry, transfer or wallet change will happen during the fix. After it's deployed, the admin can try the ₦12,380 payout once.
 
-## Where the formula runs and changes money
-
-Only one path lets it change money fields: when a payout is requested, `deduct_wallet_on_payout_request` runs it first, inside the trigger. Trigger depth is greater than 1 there, so `prevent_balance_manipulation` does not block it. The payout check then uses the inflated `menu_earnings_balance`.
-
-The timestamps show the drift steps landing on payout days:
-- **TOP KITCHEN:** drift was ₦6,420 from Aug 15 to Aug 31, then ₦6,920 from Sep 1. A ₦500 dispute deduction (Aug 29) was wiped out by the reconcile inside payout c5379faf (₦12,560, Aug 31, 15:21).
-- **Taste Affairs:** drift was ₦7,350 until Sep 23, then ₦8,750 from Sep 24. Wallet minus ledger rose ₦1,400 around payout 6b7342dc (₦32,835, Sep 23, 16:26), which matches the second dispute deduction (Aug 23).
-- **Aug 7 repair:** it rebuilt both wallets correctly. Each later payout's reconcile then removed the deductions again. Taste Affairs went straight back to ₦7,350.
-
-## The 17:45:15 UTC update
-
-All 26 vendor wallets were updated within about 130 ms (17:45:15.248 to 17:45:15.381). No migration and no ledger row was written at that time, and no edge function request was logged.
-
-The source code points to the admin Payouts page. `AdminPayouts.fetchManualVendorWallets` calls `reconcile_vendor_wallet` for every vendor wallet in parallel, under the admin's signed-in session. For those calls, `prevent_balance_manipulation` puts every money field back to its old value. Only `updated_at` changed.
-
-This also explains why the stored menu bucket stays negative: the vendor's Withdraw screen reconcile is reverted the same way. This attribution is inferred from the code and timing; there is no request log to prove it.
-
-## Answers to the questions
-
-1. **What the vendor sees as withdrawable:** the Withdraw screen shows `menu_earnings_balance` (plus rider revenue, if any). The dashboard shows `balance`/`eligible_balance`. The payout gate checks `menu_earnings_balance` after the reconcile runs inside the trigger, so it really allows the formula value: ₦6,920 and ₦12,380.
-2. **What transaction history counts:** completed production rows only, all categories. Cancelled `vendor_share` rows (TOP KITCHEN 11 rows, ₦24,785; Taste Affairs 3 rows, ₦11,550) are correctly left out of both totals. There are no pending rows, and pending_balance is 0.
-3. **Where the ₦6,920 and ₦8,750 come from:** the ignored debits listed above. It is not a missing opening balance, not a payout reversal, and not caused by the repair script.
-4. **Negative menu_earnings_balance:** this is a stale bucket. The deduction trigger subtracts each payout from it, and the reconcile that would reset it is reverted on the signed-in paths. It is reporting only: the payout gate resets it to the inflated formula value before checking.
-5. **Payout cross-check:** each Aug–Oct payout has exactly one matching `PAYOUT-REQ-<id>` ledger debit with no transfer charge, except one. TOP KITCHEN payout 62423211 (₦8,300, Aug 1, completed) has no ledger row. It predates the Aug 7 rebuild, so the rebuild already absorbed it. It needs a separate review, but it is not part of today's drift. I found no duplicate `VENDOR-SHARE-<order>` references.
-6. **Other wallets:** no other vendor wallet has drift, checked one row per wallet id.
-7. **Current risk: yes.** On their next withdrawal, TOP KITCHEN can take ₦6,920 above what the ledger supports and Taste Affairs ₦8,750, ₦15,670 in total. The payout gate would approve it.
-
-## Amendment plan (needs your approval, nothing applied)
-
-1. **Close the overdraw now (safest first):** add a migration that changes `reconcile_vendor_wallet` to use the full completed ledger net:
-   - `balance` = sum of all completed credits minus debits for the environment
-   - `menu_earnings_balance` = min(menu formula including dispute, adjustment and vendor_share debits, balance)
-   - Keep the 0 floor only on the withdrawable buckets, never on `balance`. Keep the hold-period logic.
-2. **Add a payout guard:** in `deduct_wallet_on_payout_request`, also refuse any payout greater than the completed ledger net.
-3. **Correct the two wallets:** after step 1, run the existing step-up-protected, audited drift correction once per wallet. It needs expected drift ₦6,920 and ₦8,750. It sets the stored balance to the ledger value with no invented ledger entries. Then confirm the drift job reports 0.
-4. **Stop the useless mass reconcile:** remove the per-wallet reconcile loop from the admin Payouts page and read the values instead. This is a separate frontend change.
-5. **Review payout 62423211 (₦8,300, Aug 1):** it has no ledger row. Decide whether to add a back-dated audit note, with no balance effect.
-6. **Add regression tests:** dispute, adjustment or vendor_share debit followed by a payout request must leave balance equal to the ledger, and the payout cap must never exceed the ledger.
+## Technical details
+- Files and functions: `drizzle/migrations/0038_vendor_wallet_ledger_guards.sql` (`deduct_wallet_on_payout_request` lines 136–137, `assert_payout_has_ledger_debit` lines 261–286), and `supabase/functions/process-payout/index.ts` (admin vendor insert lines 221–245, self-service insert lines 313–336).
+- Optional: process-payout could also set `environment` explicitly. The database trigger alone is enough.
