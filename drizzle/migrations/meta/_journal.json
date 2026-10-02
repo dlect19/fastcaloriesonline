@@ -274,6 +274,13 @@
       "when": 1790964821701,
       "tag": "0038_vendor_wallet_ledger_guards",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1790971771218,
+      "tag": "0039_payout_environment_before_insert",
+      "breakpoints": true
     }
   ]
 }
