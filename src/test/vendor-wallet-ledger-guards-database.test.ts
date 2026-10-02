@@ -251,3 +251,9 @@ describe('vendor wallet ledger guards', () => {
     await db.exec('ALTER TABLE payout_requests ENABLE TRIGGER deduct');
   });
 });
+
+it('vendor withdraw and admin payouts pages never call reconcile on load', () => {
+  for (const f of ['src/pages/vendor/VendorWithdraw.tsx', 'src/pages/admin/AdminPayouts.tsx']) {
+    expect(readFileSync(f, 'utf8')).not.toMatch(/reconcile_vendor_wallet/);
+  }
+});
