@@ -267,6 +267,13 @@
       "when": 1790682139631,
       "tag": "0037_restrict_rider_payout_details_insert",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1790964821701,
+      "tag": "0038_vendor_wallet_ledger_guards",
+      "breakpoints": true
     }
   ]
 }
