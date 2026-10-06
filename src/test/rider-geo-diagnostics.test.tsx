@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act, waitFor, render, screen, fireEvent } from '@testing-library/react';
 import { readFileSync } from 'fs';
 import { classifyWebError, classifyNativeError, webPreflight, GEO_DIAGNOSTIC_CODE } from '@/lib/riderGeoDiagnostics';
@@ -24,7 +24,7 @@ vi.mock('@/integrations/supabase/client', () => {
 vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => native } }));
 vi.mock('@capacitor/geolocation', () => ({ Geolocation: nativeGeo }));
 
-import { useRiderLiveTracking } from '@/hooks/useRiderLiveTracking';
+import { useRiderLiveTracking, ACQUISITION_TIMING } from '@/hooks/useRiderLiveTracking';
 import { RiderTrackingStatus } from '@/components/rider/RiderTrackingStatus';
 
 const pos = () => ({ coords: { latitude: 6.5, longitude: 3.4, accuracy: 30, speed: null, heading: null }, timestamp: Date.now() });
@@ -81,22 +81,7 @@ describe('web/PWA flows', () => {
     await waitFor(() => expect(watch).toHaveBeenCalled());
   });
 
-  it('timeout then one lower-accuracy recovery (no loop)', async () => {
-    getCurrent.mockImplementationOnce((_ok: any, err: any) => err({ code: 3 }));
-    renderHook(() => useRiderLiveTracking('r'));
-    await waitFor(() => expect(rpc).toHaveBeenCalled());
-    expect(getCurrent).toHaveBeenCalledTimes(2);
-    expect(getCurrent.mock.calls[1][2]).toMatchObject({ enableHighAccuracy: false, maximumAge: 30_000 });
-  });
 
-  it('position unavailable is reported after the bounded 3-step ladder', async () => {
-    permState = 'granted';
-    getCurrent.mockImplementation((_ok: any, err: any) => err({ code: 2 }));
-    const { result } = renderHook(() => useRiderLiveTracking('r'));
-    await waitFor(() => expect(result.current.problem).toBe('position_unavailable'));
-    expect(getCurrent).toHaveBeenCalledTimes(3);
-    expect(watch).not.toHaveBeenCalled();
-  });
 
   it('insecure context never calls geolocation', async () => {
     Object.defineProperty(window, 'isSecureContext', { configurable: true, value: false });
@@ -175,13 +160,6 @@ describe('online/assignment gating and recovery', () => {
     expect(clear).toHaveBeenCalledWith(3);
   });
 
-  it('code 2 on cached request recovers via balanced fallback (no high accuracy needed)', async () => {
-    getCurrent.mockImplementationOnce((_ok: any, err: any) => err({ code: 2 }));
-    renderHook(() => useRiderLiveTracking('r'));
-    await waitFor(() => expect(rpc).toHaveBeenCalled());
-    expect(getCurrent.mock.calls[0][2]).toMatchObject({ enableHighAccuracy: false, maximumAge: 120_000 });
-    expect(getCurrent.mock.calls[1][2]).toMatchObject({ enableHighAccuracy: false });
-  });
 
   it('Retry while offline does not touch GPS', async () => {
     const { result } = renderHook(() => useRiderLiveTracking('r', { online: false }));
@@ -190,17 +168,6 @@ describe('online/assignment gating and recovery', () => {
     expect(getCurrent).not.toHaveBeenCalled();
   });
 
-  it('position unavailable auto-recovers on focus / network restore, bounded per event', async () => {
-    permState = 'granted';
-    getCurrent.mockImplementation((_ok: any, err: any) => err({ code: 2 }));
-    const { result } = renderHook(() => useRiderLiveTracking('r'));
-    await waitFor(() => expect(result.current.problem).toBe('position_unavailable'));
-    expect(getCurrent).toHaveBeenCalledTimes(3);
-    getCurrent.mockImplementation((ok: any) => ok(pos()));
-    await act(async () => { window.dispatchEvent(new Event('online')); });
-    await waitFor(() => expect(rpc).toHaveBeenCalled());
-    await waitFor(() => expect(result.current.status).toBe('tracking'));
-  });
 
   it('diagnostics line has no coordinates', () => {
     render(<RiderTrackingStatus status="problem" problem="position_unavailable" activeOrderCount={1} onRetry={() => {}}
@@ -209,5 +176,81 @@ describe('online/assignment gating and recovery', () => {
     expect(t).toMatch(/online=yes · assigned=1 · browser · secure=yes · last=position_unavailable/);
     expect(t).not.toMatch(/\d+\.\d{3,}/);
     expect(screen.getByText(/POSITION_UNAVAILABLE/)).toBeTruthy();
+  });
+});
+
+describe('web acquisition: one-shot code 2 must not end tracking', () => {
+  const T = { ...ACQUISITION_TIMING };
+  let watchers: Map<number, { ok: any; err: any; opts: any }>;
+  let nextId: number;
+  let clear: any;
+  beforeEach(() => {
+    Object.assign(ACQUISITION_TIMING, { cachedTimeoutMs: 20, balancedWatchMs: 60, highWatchMs: 60, resumeCooldownMs: 50, retryDebounceMs: 0 });
+    watchers = new Map(); nextId = 1;
+    getCurrent = vi.fn((_ok: any, err: any) => err({ code: 2 }));
+    watch = vi.fn((ok: any, err: any, opts: any) => { const id = nextId++; watchers.set(id, { ok, err, opts }); return id; });
+    clear = vi.fn((id: number) => { watchers.delete(id); });
+    Object.defineProperty(navigator, 'geolocation', { configurable: true, value: { getCurrentPosition: getCurrent, watchPosition: watch, clearWatch: clear } });
+    permState = 'granted';
+  });
+  afterEach(() => { Object.assign(ACQUISITION_TIMING, T); });
+  const fire = () => { for (const w of watchers.values()) w.ok(pos()); };
+
+  it('code 2 then balanced warm-up watch success publishes immediately, then one normal watcher', async () => {
+    const { result } = renderHook(() => useRiderLiveTracking('r'));
+    await waitFor(() => expect(watch).toHaveBeenCalledTimes(1));
+    expect(watch.mock.calls[0][2]).toMatchObject({ enableHighAccuracy: false });
+    expect(result.current.diagnostics.stage).toBe('balanced_watch');
+    await act(async () => { fire(); });
+    await waitFor(() => expect(rpc).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(watch).toHaveBeenCalledTimes(2)); // normal adaptive watch
+    expect(watchers.size).toBe(1); // warm-up watcher cleared — exactly one live watcher
+    expect(result.current.problem).toBeNull();
+  });
+
+  it('balanced fails → high accuracy within budget → bounded failure, no watchers left', async () => {
+    const { result } = renderHook(() => useRiderLiveTracking('r'));
+    await waitFor(() => expect(result.current.diagnostics.stage).toBe('high_accuracy'));
+    expect(watch.mock.calls[1][2]).toMatchObject({ enableHighAccuracy: true });
+    await waitFor(() => expect(result.current.problem).toBe('position_unavailable'));
+    expect(result.current.diagnostics.stage).toBe('failed');
+    expect(watchers.size).toBe(0);
+    const calls = watch.mock.calls.length;
+    await new Promise((r) => setTimeout(r, 200));
+    expect(watch.mock.calls.length).toBe(calls); // no loop
+  });
+
+  it('repeated Retry taps never leave duplicate watchers', async () => {
+    const { result } = renderHook(() => useRiderLiveTracking('r'));
+    await waitFor(() => expect(watch).toHaveBeenCalled());
+    act(() => { result.current.retry(); result.current.retry(); result.current.retry(); });
+    await waitFor(() => expect(watch.mock.calls.length).toBeGreaterThan(1));
+    await new Promise((r) => setTimeout(r, 30));
+    expect(watchers.size).toBeLessThanOrEqual(1);
+  });
+
+  it('Retry issues the one-shot request synchronously in the tap and cleans up on unmount', async () => {
+    const { result, unmount } = renderHook(() => useRiderLiveTracking('r'));
+    await waitFor(() => expect(watch).toHaveBeenCalled());
+    const n = getCurrent.mock.calls.length;
+    act(() => { result.current.retry(); });
+    expect(getCurrent.mock.calls.length).toBe(n + 1);
+    unmount();
+    expect(watchers.size).toBe(0);
+  });
+
+  it('focus recovery after bounded failure, rate limited by cooldown', async () => {
+    const { result } = renderHook(() => useRiderLiveTracking('r'));
+    await waitFor(() => expect(result.current.problem).toBe('position_unavailable'));
+    const before = getCurrent.mock.calls.length;
+    await act(async () => { window.dispatchEvent(new Event('focus')); window.dispatchEvent(new Event('focus')); });
+    await waitFor(() => expect(getCurrent.mock.calls.length).toBe(before + 1)); // one restart, not two
+    await act(async () => { fire(); });
+    await waitFor(() => expect(rpc).toHaveBeenCalled());
+  });
+
+  it('acquisition never calls Google services', () => {
+    const src = readFileSync('src/hooks/useRiderLiveTracking.ts', 'utf8');
+    expect(src).not.toMatch(/googleapis|google\.maps|DistanceMatrix|Directions/);
   });
 });
