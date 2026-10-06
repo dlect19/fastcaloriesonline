@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
+import { isNativeIosSpin, isSpinAllowedOnPlatform } from '@/lib/spinPlatform';
 
 interface SpinSegment {
   id: string;
@@ -194,6 +195,8 @@ export function useSpinWheel() {
 
   // Perform a spin
   const spin = useCallback(async (wheelType: 'free' | 'tier1' | 'tier2' | 'tier3', spinIndex: number = 0): Promise<SpinResult | null> => {
+    // Guard all callers before invoking the paid spin/wallet operation on native iOS.
+    if (!isSpinAllowedOnPlatform(wheelType)) return null;
     if (!user) {
       toast({ title: 'Please log in to spin', variant: 'destructive' });
       return null;
@@ -275,7 +278,7 @@ export function useSpinWheel() {
     activeDiscounts,
     canFreeSpin,
     hasTryAgain,
-    spinEnabled,
+    spinEnabled: { ...spinEnabled, paid: spinEnabled.paid && !isNativeIosSpin() },
     spin,
     getBestDiscount,
     useDiscount,
