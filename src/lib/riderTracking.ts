@@ -72,7 +72,9 @@ export function distanceM(a: { lat: number; lng: number }, b: { lat: number; lng
 }
 
 /** Readings this poor are ignored rather than shown to the customer. */
-export const MAX_USABLE_ACCURACY_M = 200;
+// Matches the server limit; coarse phone/PWA fixes are still shown (with
+// accuracy) rather than silently dropped, which left customers with no point.
+export const MAX_USABLE_ACCURACY_M = 1000;
 /** Movement counted as real (not GPS jitter). */
 export const MEANINGFUL_MOVE_M = 50;
 
@@ -130,10 +132,13 @@ export class LatestOnlyBuffer {
   get size() { return this.item ? 1 : 0; }
 }
 
-export type LiveState = 'connecting' | 'live' | 'stale' | 'unavailable';
+export type LiveState = 'connecting' | 'waiting' | 'live' | 'stale';
+
+/** Bounded connection window before telling the customer we're waiting on the rider. */
+export const CONNECT_WINDOW_MS = 20_000;
 
 export function liveState(receivedAt: string | null, now: number, cfg: TrackingConfig, waitedMs: number): LiveState {
-  if (!receivedAt) return waitedMs > 60_000 ? 'unavailable' : 'connecting';
+  if (!receivedAt) return waitedMs > CONNECT_WINDOW_MS ? 'waiting' : 'connecting';
   const age = (now - new Date(receivedAt).getTime()) / 1000;
   return age > cfg.staleAfterS ? 'stale' : 'live';
 }

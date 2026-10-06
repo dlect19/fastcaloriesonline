@@ -112,7 +112,7 @@ export function LiveRiderMap({ orderId, destLat, destLng }: Props) {
           {state === 'connecting' && <><Loader2 className="w-4 h-4 animate-spin text-muted-foreground" /><span className="text-muted-foreground">Connecting to rider location…</span></>}
           {state === 'live' && <><Bike className="w-4 h-4 text-primary" /><span className="text-foreground">Live rider location{km !== null ? ` · ${km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`} away` : ''}</span></>}
           {state === 'stale' && <><Clock className="w-4 h-4 text-muted-foreground" /><span className="text-muted-foreground">Rider location not updated recently</span></>}
-          {state === 'unavailable' && <><WifiOff className="w-4 h-4 text-muted-foreground" /><span className="text-muted-foreground">Rider location temporarily unavailable</span></>}
+          {state === 'waiting' && <><WifiOff className="w-4 h-4 text-muted-foreground" /><span className="text-muted-foreground">Waiting for rider to enable location. This updates automatically.</span></>}
         </div>
         {point && <span className="text-xs text-muted-foreground whitespace-nowrap">Last updated {lastUpdatedLabel(point.received_at, now)}</span>}
       </div>
