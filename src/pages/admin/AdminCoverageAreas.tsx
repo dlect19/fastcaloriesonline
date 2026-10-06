@@ -91,7 +91,7 @@ export default function AdminCoverageAreas() {
       try {
         let data: { key: string } | null = null;
         try { data = { key: await fetchBrowserMapsKey() }; }
-        catch (e) { toast.error((e as Error).message || 'Map unavailable'); return; }
+        catch (e) { toast({ title: 'Map unavailable', description: (e as Error).message, variant: 'destructive' }); return; }
         if (cancelled) return;
         await loadGoogleMaps(data.key);
         if (cancelled || !mapRef.current) return;
