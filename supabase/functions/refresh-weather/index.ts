@@ -74,7 +74,7 @@ serve(async (req) => {
     // Same shared service and grid as dispatch/quotes: grids with a fresh
     // (<15 min) reading are not re-fetched, and every call is logged there.
     const ws = await loadWeatherSettings(supabase);
-    const ws2 = forceRun ? { ...ws, enabled: true } : ws;
+    const ws2 = ws; // admin "enabled" is respected even for a forced refresh
     let updated = 0;
     let cached = 0;
     for (const [, { lat, lon }] of grid) {
