@@ -1,7 +1,14 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useGeolocation } from './useGeolocation';
 import type { Tables } from '@/integrations/supabase/types';
 import { invokeGetNearbyVendors } from '@/lib/getNearbyVendors';
+import {
+  nextAnchor,
+  readVendorListCache,
+  vendorListCacheKey,
+  writeVendorListCache,
+  type Coords,
+} from '@/lib/vendorListFetchPolicy';
 
 type Vendor = Tables<'vendors'>;
 
@@ -61,11 +68,20 @@ export function useLocationBasedVendors({
   } = useGeolocation();
 
   // Use external location if provided, otherwise fall back to GPS
-  const latitude = externalLat ?? gpsLat;
-  const longitude = externalLon ?? gpsLon;
+  const rawLat = externalLat ?? gpsLat;
+  const rawLon = externalLon ?? gpsLon;
+  // Only move the query anchor after ~300 m of real movement, so GPS jitter
+  // never triggers a new vendor-list request.
+  const anchorRef = useRef<Coords | null>(null);
+  anchorRef.current = nextAnchor(
+    anchorRef.current,
+    rawLat !== null && rawLat !== undefined && rawLon !== null && rawLon !== undefined ? { lat: rawLat, lng: rawLon } : null,
+  );
+  const latitude = anchorRef.current?.lat ?? null;
+  const longitude = anchorRef.current?.lng ?? null;
   const hasLocation = latitude !== null && longitude !== null;
 
-  const fetchVendors = useCallback(async () => {
+  const fetchVendors = useCallback(async (force = false) => {
     if (!enabled) return;
 
     setLoading(true);
@@ -78,6 +94,22 @@ export function useLocationBasedVendors({
       setVendors([]);
       setLoading(false);
       return;
+    }
+
+    const cacheKey = vendorListCacheKey({ lat: latitude!, lng: longitude! }, category === 'all' ? null : category, addressState || null);
+    const apply = (data: any) => {
+      setVendors((data.vendors || []) as VendorWithDistance[]);
+      setMaxRadius(data.max_radius_km || 10);
+      setCustomerInCoverage(data.customer_in_coverage !== false);
+      setCoverageAreas((data.coverage_areas || []).map((a: any) => ({ id: a.id, name: a.name, color: a.color })));
+    };
+    if (!force) {
+      const cached = readVendorListCache<any>(cacheKey);
+      if (cached) {
+        apply(cached);
+        setLoading(false);
+        return;
+      }
     }
 
     try {
@@ -105,10 +137,8 @@ export function useLocationBasedVendors({
         return;
       }
 
-      setVendors((data.vendors || []) as VendorWithDistance[]);
-      setMaxRadius(data.max_radius_km || 10);
-      setCustomerInCoverage(data.customer_in_coverage !== false);
-      setCoverageAreas((data.coverage_areas || []).map((a: any) => ({ id: a.id, name: a.name, color: a.color })));
+      writeVendorListCache(cacheKey, data);
+      apply(data);
     } catch (err) {
       console.error('Error fetching nearby vendors:', err);
       setError('Failed to load vendors');
@@ -142,7 +172,7 @@ export function useLocationBasedVendors({
     maxRadius,
     customerInCoverage,
     coverageAreas,
-    refetch: fetchVendors,
+    refetch: () => fetchVendors(true),
     requestLocation: getCurrentPosition,
   };
 }

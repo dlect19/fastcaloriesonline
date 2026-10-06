@@ -1,3 +1,4 @@
+import { logGoogleUsageLite } from "../_shared/google-usage-lite.ts";
 // WhatsApp webhook (Twilio) — fully tap-driven, in-WhatsApp account creation.
 // Public endpoint (no JWT). Twilio signature is verified in production.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -2531,6 +2532,13 @@ async function persistSession(supabase: any, id: string, state: string, context:
 // Google Maps gateway helpers (reverse-geocode + geocode). Return null on any failure — location
 // capture must never block ordering.
 const GMAPS_GATEWAY = "https://connector-gateway.lovable.dev/google_maps";
+function logWaGeocode(api: string, status: number, providerStatus: unknown) {
+  logGoogleUsageLite({
+    provider: "google_maps", endpoint: api, api, function_name: "whatsapp-webhook",
+    outcome: providerStatus === "OK" ? "success" : "failed", status_code: status,
+    billable_elements: 1, cache_status: "none", meta: { via: "connector_gateway" },
+  });
+}
 async function reverseGeocode(lat: number, lon: number): Promise<string | null> {
   const lk = Deno.env.get("LOVABLE_API_KEY");
   const gk = Deno.env.get("GOOGLE_MAPS_API_KEY");
@@ -2540,6 +2548,7 @@ async function reverseGeocode(lat: number, lon: number): Promise<string | null> 
       headers: { Authorization: `Bearer ${lk}`, "X-Connection-Api-Key": gk },
     });
     const j = await r.json();
+    logWaGeocode("reverse_geocode", r.status, j?.status);
     return j?.results?.[0]?.formatted_address ?? null;
   } catch (_) { return null; }
 }
@@ -2567,6 +2576,7 @@ async function geocodeText(query: string): Promise<{ lat: number; lon: number; a
       headers: { Authorization: `Bearer ${lk}`, "X-Connection-Api-Key": gk },
     });
     const j = await r.json();
+    logWaGeocode("geocoding", r.status, j?.status);
     const hit = j?.results?.[0];
     if (!hit?.geometry?.location) return null;
     return { lat: hit.geometry.location.lat, lon: hit.geometry.location.lng, address: hit.formatted_address };

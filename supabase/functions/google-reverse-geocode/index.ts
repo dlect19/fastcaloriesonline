@@ -1,18 +1,19 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { guardGoogleProxy, logGoogleUsage } from "../_shared/google-usage.ts";
+import { selectServerMapsKey } from "../_shared/google-usage-core.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
+let _guard: any = null;
 function logUsage(endpoint: string, outcome: 'success' | 'failed', costUsd: number) {
-  try {
-    const supa = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
-    supa.from('api_usage_log').insert({
-      provider: 'google_maps', endpoint, outcome, cost_estimate_usd: costUsd,
-    }).then(() => {});
-  } catch (_) { /* best-effort */ }
+  logGoogleUsage({
+    provider: 'google_maps', endpoint, api: endpoint, function_name: 'google-reverse-geocode',
+    environment: _guard?.env ?? 'production', outcome, billable_elements: outcome === 'success' || costUsd > 0 ? 1 : 0,
+    cost_estimate_usd: costUsd, cache_status: 'none', user_hash: _guard?.userHash ?? null, ip_hash: _guard?.ipHash ?? null,
+  });
 }
 
 serve(async (req) => {
@@ -20,8 +21,13 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const guard = await guardGoogleProxy(req, { fn: 'google-reverse-geocode', perMinuteUser: 60, perMinuteGuest: 30 }, corsHeaders);
+  if (guard instanceof Response) return guard;
+  _guard = guard;
+
   try {
-    const apiKey = Deno.env.get('GOOGLE_MAPS_KEY');
+    // Server key for this environment; development never uses the production key.
+    const apiKey = selectServerMapsKey(guard.env, (k) => Deno.env.get(k));
     if (!apiKey) {
       return new Response(
         JSON.stringify({ error: 'GOOGLE_MAPS_KEY not configured' }),

@@ -1,3 +1,5 @@
+/// <reference types="google.maps" />
+import { fetchBrowserMapsKey } from '@/lib/googleMapsBrowserKey';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, MapPin, Loader2, AlertCircle, Search, ChevronDown, X } from 'lucide-react';
@@ -69,16 +71,11 @@ export default function CoverageMap() {
 
     const initMap = async () => {
       try {
-        if (!window.google?.maps) {
-          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-          const supabaseAnonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-          const response = await fetch(`${supabaseUrl}/functions/v1/get-google-maps-key`, {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${supabaseAnonKey}`, 'apikey': supabaseAnonKey, 'Content-Type': 'application/json' },
-            body: JSON.stringify({}),
-          });
-          const keyData = await response.json();
-          if (!keyData?.key) { setError('Map unavailable'); setMapLoading(false); return; }
+        if (!(window as any).google?.maps) {
+          let mapsKey: string;
+          try { mapsKey = await fetchBrowserMapsKey(); }
+          catch (e) { setError((e as Error).message || 'Map unavailable'); setMapLoading(false); return; }
+          const keyData = { key: mapsKey };
 
           await new Promise<void>((resolve, reject) => {
             const script = document.createElement('script');

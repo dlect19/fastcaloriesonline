@@ -1,157 +1,47 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getGoogleMapsDistance } from "../_shared/google-maps.ts";
+// Road distance for signed-in app features (rider distance stats).
+// Goes through the single cached/capped/logged Distance Matrix path.
+import { getRoadDistance } from "../_shared/road-distance.ts";
+import { guardGoogleProxy } from "../_shared/google-usage.ts";
+import { haversineKm } from "../_shared/google-usage-core.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+const isCoord = (n: unknown, max: number) => typeof n === 'number' && Number.isFinite(n) && Math.abs(n) <= max;
 
-function coordKey(a: number, b: number, c: number, d: number) {
-  // ~110m precision (3 decimals) — absorbs GPS drift so nearby fixes reuse cache.
-  const r = (n: number) => n.toFixed(3);
-  return `${r(a)},${r(b)}|${r(c)},${r(d)}`;
-}
-
-function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
+  const guard = await guardGoogleProxy(req, { fn: 'calculate-distance', requireUser: true, perMinuteUser: 20 }, corsHeaders);
+  if (guard instanceof Response) return guard;
+
   try {
-    const body = await req.json();
-    const { originLat, originLng, destLat, destLng, vendorId, customerAddressId } = body;
-
-    if (!originLat || !originLng || !destLat || !destLng) {
-      return new Response(
-        JSON.stringify({ error: 'Missing coordinates' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    const { originLat, originLng, destLat, destLng } = await req.json();
+    if (!isCoord(originLat, 90) || !isCoord(destLat, 90) || !isCoord(originLng, 180) || !isCoord(destLng, 180)) {
+      return json({ error: 'Missing coordinates' }, 400);
     }
 
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    );
-
-    const ck = coordKey(originLat, originLng, destLat, destLng);
-
-    // 1. Try cache lookup
-    let cacheQuery = supabase
-      .from('delivery_distance_cache')
-      .select('id, distance_km, duration_minutes, source, expires_at, hit_count')
-      .gt('expires_at', new Date().toISOString())
-      .limit(1);
-
-    if (vendorId && customerAddressId) {
-      cacheQuery = cacheQuery.eq('vendor_id', vendorId).eq('customer_address_id', customerAddressId);
-    } else {
-      cacheQuery = cacheQuery.eq('coord_key', ck);
-    }
-
-    const { data: cached } = await cacheQuery.maybeSingle();
-
-    if (cached) {
-      // Bump hit counter (fire-and-forget)
-      supabase.from('delivery_distance_cache')
-        .update({ hit_count: (cached.hit_count || 0) + 1 })
-        .eq('id', cached.id)
-        .then(() => {});
-
-      supabase.from('api_usage_log').insert({
-        provider: 'google_maps', endpoint: 'distance_matrix',
-        outcome: 'cache_hit', cost_estimate_usd: 0,
-      }).then(() => {});
-
-      console.log(`[calculate-distance] CACHE HIT ${cached.distance_km}km`);
-
-      return new Response(
-        JSON.stringify({
-          distanceInKm: Number(cached.distance_km),
-          durationInMinutes: cached.duration_minutes,
-          distanceText: `${cached.distance_km} km`,
-          durationText: `${cached.duration_minutes} min`,
-          source: 'cache',
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Short-circuit: skip Google entirely when straight-line distance is tiny.
-    // Client already blocks <0.5km, but be defensive here too.
     const straightKm = haversineKm(originLat, originLng, destLat, destLng);
     if (straightKm < 0.5) {
-      return new Response(
-        JSON.stringify({
-          distanceInKm: 0, durationInMinutes: 0,
-          distanceText: '0 km', durationText: '0 min', source: 'proximity',
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return json({ distanceInKm: 0, durationInMinutes: 0, distanceText: '0 km', durationText: '0 min', source: 'proximity' });
     }
 
-    // 2. Miss — call Google (with Haversine fallback)
-    const result = await getGoogleMapsDistance(originLat, originLng, destLat, destLng);
-    console.log(`[calculate-distance] MISS → ${result.source} ${result.distanceKm}km`);
+    const r = await getRoadDistance({ lat: originLat, lng: originLng }, { lat: destLat, lng: destLng },
+      { fn: 'calculate-distance', userHash: guard.userHash });
+    if (!r.ok) return json({ error: r.reason === 'cap_reached' ? 'distance_temporarily_unavailable' : 'distance_unavailable' }, 503);
 
-    // 3. Read TTL from settings and upsert cache
-    const { data: ttlSetting } = await supabase
-      .from('platform_settings').select('value').eq('key', 'distance_cache_ttl_days').maybeSingle();
-    const ttlDays = parseInt(ttlSetting?.value || '30', 10);
-    const expiresAt = new Date(Date.now() + ttlDays * 86400_000).toISOString();
-
-    const row = {
-      vendor_id: vendorId || null,
-      customer_address_id: customerAddressId || null,
-      vendor_latitude: originLat,
-      vendor_longitude: originLng,
-      customer_latitude: destLat,
-      customer_longitude: destLng,
-      coord_key: ck,
-      distance_km: result.distanceKm,
-      duration_minutes: result.durationMinutes,
-      source: result.source,
-      expires_at: expiresAt,
-      updated_at: new Date().toISOString(),
-    };
-
-    if (vendorId && customerAddressId) {
-      await supabase.from('delivery_distance_cache')
-        .upsert(row, { onConflict: 'vendor_id,customer_address_id' });
-    } else {
-      // Upsert on coord_key so repeat GPS-based lookups don't create duplicates.
-      await supabase.from('delivery_distance_cache')
-        .upsert(row, { onConflict: 'coord_key' });
-    }
-
-    supabase.from('api_usage_log').insert({
-      provider: result.source === 'google_maps' ? 'google_maps' : 'haversine',
-      endpoint: 'distance_matrix',
-      outcome: 'success',
-      cost_estimate_usd: result.source === 'google_maps' ? 0.005 : 0,
-    }).then(() => {});
-
-    return new Response(
-      JSON.stringify({
-        distanceInKm: result.distanceKm,
-        durationInMinutes: result.durationMinutes,
-        distanceText: `${result.distanceKm} km`,
-        durationText: `${result.durationMinutes} min`,
-        source: result.source,
-      }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return json({
+      distanceInKm: r.km,
+      durationInMinutes: r.minutes,
+      distanceText: `${r.km} km`,
+      durationText: `${r.minutes ?? 0} min`,
+      source: r.source,
+    });
   } catch (err) {
-    console.error('calculate-distance error:', err);
-    return new Response(
-      JSON.stringify({ error: 'Internal error', message: (err as Error).message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    console.error('calculate-distance error:', (err as Error).message);
+    return json({ error: 'Internal error' }, 500);
   }
 });

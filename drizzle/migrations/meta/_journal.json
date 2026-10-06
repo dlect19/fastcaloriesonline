@@ -281,6 +281,13 @@
       "when": 1790971771218,
       "tag": "0039_payout_environment_before_insert",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1791273807369,
+      "tag": "0040_google_maps_cost_controls",
+      "breakpoints": true
     }
   ]
 }

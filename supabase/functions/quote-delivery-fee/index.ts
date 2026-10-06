@@ -87,6 +87,7 @@ serve(async (req) => {
     const quote = await quoteDeliveryFee(supabase, {
       originLat, originLng, destLat, destLng,
       vendorId: resolvedVendorId, customerAddressId: body.customerAddressId ?? null,
+      callerFn: "quote-delivery-fee",
     }, settings);
 
     if (!quote.ok) {

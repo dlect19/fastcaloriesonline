@@ -1268,31 +1268,58 @@ export type Database = {
       }
       api_usage_log: {
         Row: {
+          api: string | null
+          billable_elements: number
+          cache_status: string | null
           cost_estimate_usd: number
           created_at: string
           endpoint: string
+          environment: string | null
+          function_name: string | null
           id: string
+          ip_hash: string | null
+          latency_ms: number | null
           meta: Json | null
           outcome: string
           provider: string
+          status_code: number | null
+          user_hash: string | null
         }
         Insert: {
+          api?: string | null
+          billable_elements?: number
+          cache_status?: string | null
           cost_estimate_usd?: number
           created_at?: string
           endpoint: string
+          environment?: string | null
+          function_name?: string | null
           id?: string
+          ip_hash?: string | null
+          latency_ms?: number | null
           meta?: Json | null
           outcome?: string
           provider: string
+          status_code?: number | null
+          user_hash?: string | null
         }
         Update: {
+          api?: string | null
+          billable_elements?: number
+          cache_status?: string | null
           cost_estimate_usd?: number
           created_at?: string
           endpoint?: string
+          environment?: string | null
+          function_name?: string | null
           id?: string
+          ip_hash?: string | null
+          latency_ms?: number | null
           meta?: Json | null
           outcome?: string
           provider?: string
+          status_code?: number | null
+          user_hash?: string | null
         }
         Relationships: []
       }
@@ -2167,6 +2194,7 @@ export type Database = {
       }
       delivery_distance_cache: {
         Row: {
+          cache_key: string | null
           coord_key: string
           created_at: string
           customer_address_id: string | null
@@ -2175,10 +2203,12 @@ export type Database = {
           delivery_fee: number | null
           distance_km: number
           duration_minutes: number | null
+          environment: string
           expires_at: string
           google_place_id: string | null
           hit_count: number
           id: string
+          provider_version: string
           source: string
           updated_at: string
           vendor_id: string | null
@@ -2186,6 +2216,7 @@ export type Database = {
           vendor_longitude: number
         }
         Insert: {
+          cache_key?: string | null
           coord_key: string
           created_at?: string
           customer_address_id?: string | null
@@ -2194,10 +2225,12 @@ export type Database = {
           delivery_fee?: number | null
           distance_km: number
           duration_minutes?: number | null
+          environment?: string
           expires_at?: string
           google_place_id?: string | null
           hit_count?: number
           id?: string
+          provider_version?: string
           source?: string
           updated_at?: string
           vendor_id?: string | null
@@ -2205,6 +2238,7 @@ export type Database = {
           vendor_longitude: number
         }
         Update: {
+          cache_key?: string | null
           coord_key?: string
           created_at?: string
           customer_address_id?: string | null
@@ -2213,10 +2247,12 @@ export type Database = {
           delivery_fee?: number | null
           distance_km?: number
           duration_minutes?: number | null
+          environment?: string
           expires_at?: string
           google_place_id?: string | null
           hit_count?: number
           id?: string
+          provider_version?: string
           source?: string
           updated_at?: string
           vendor_id?: string | null
@@ -4520,6 +4556,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      google_api_daily_usage: {
+        Row: {
+          api: string
+          blocked: number
+          cap: number | null
+          day: string
+          elements: number
+          environment: string
+          updated_at: string
+        }
+        Insert: {
+          api: string
+          blocked?: number
+          cap?: number | null
+          day: string
+          elements?: number
+          environment: string
+          updated_at?: string
+        }
+        Update: {
+          api?: string
+          blocked?: number
+          cap?: number | null
+          day?: string
+          elements?: number
+          environment?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      google_api_rate_buckets: {
+        Row: {
+          bucket_key: string
+          hits: number
+          window_start: string
+        }
+        Insert: {
+          bucket_key: string
+          hits?: number
+          window_start: string
+        }
+        Update: {
+          bucket_key?: string
+          hits?: number
+          window_start?: string
+        }
+        Relationships: []
       }
       ledger_adjustments_audit: {
         Row: {
@@ -11485,6 +11569,19 @@ export type Database = {
           wallet_id: string
           wallet_pool: string
         }[]
+      }
+      google_api_rate_hit: {
+        Args: { p_key: string; p_limit: number; p_window_seconds: number }
+        Returns: boolean
+      }
+      google_api_reserve: {
+        Args: {
+          p_api: string
+          p_cap: number
+          p_elements: number
+          p_environment: string
+        }
+        Returns: boolean
       }
       has_role: {
         Args: {

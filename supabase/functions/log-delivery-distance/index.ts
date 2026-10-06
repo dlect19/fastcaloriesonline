@@ -117,7 +117,7 @@ Deno.serve(async (req) => {
 
     // Step 3: Calculate distance using shared Google Maps helper (direct, no edge-to-edge call)
     if (!distanceKm && originLat && originLng && destLat && destLng) {
-      const result = await getGoogleMapsDistance(originLat, originLng, destLat, destLng);
+      const result = await getGoogleMapsDistance(originLat, originLng, destLat, destLng, 'log-delivery-distance');
       distanceKm = result.distanceKm;
       console.log(`Distance for order ${orderId}: ${distanceKm} km via ${result.source}`);
     }

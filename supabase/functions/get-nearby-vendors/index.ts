@@ -1,6 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getGoogleMapsDistance, haversineDistance } from "../_shared/google-maps.ts";
+import { selectBrowseOutlets } from "../_shared/google-usage-core.ts";
+import { logGoogleUsage, platformEnvironment } from "../_shared/google-usage.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -169,7 +171,8 @@ serve(async (req) => {
       if (closestOutlet.latitude && closestOutlet.longitude) {
         // Calculate actual distance for delivery fee — vendor→customer direction (delivery route)
         gmResult = await getGoogleMapsDistance(
-          closestOutlet.latitude, closestOutlet.longitude, customer_lat, customer_lon
+          closestOutlet.latitude, closestOutlet.longitude, customer_lat, customer_lon,
+          "get-nearby-vendors:vendor-open",
         );
         closestDistance = gmResult.distanceKm;
         console.log(`Vendor distance (${gmResult.source}): ${closestDistance} km (vendor→customer)`);
@@ -278,11 +281,12 @@ serve(async (req) => {
             if (geoRes.ok) {
               const geoData = await geoRes.json();
               console.log("Reverse geocode status:", geoData?.status, "results count:", geoData?.results?.length);
-              supabase.from('api_usage_log').insert({
-                provider: 'google_maps', endpoint: 'reverse_geocode',
-                outcome: geoData?.status === 'OK' ? 'success' : 'failed',
-                cost_estimate_usd: geoData?.status === 'OK' ? 0.005 : 0,
-              }).then(() => {});
+              logGoogleUsage({
+                provider: 'google_maps', endpoint: 'reverse_geocode', api: 'reverse_geocode',
+                function_name: 'get-nearby-vendors', environment: await platformEnvironment(supabase),
+                outcome: geoData?.status === 'OK' ? 'success' : 'failed', status_code: geoRes.status,
+                billable_elements: 1, cache_status: 'none',
+              }, supabase);
               for (const result of (geoData?.results || [])) {
                 const stateComponent = result?.address_components?.find(
                   (c: any) => c.types?.includes("administrative_area_level_1")
@@ -309,70 +313,23 @@ serve(async (req) => {
 
     console.log("Resolved customer state:", customerState);
 
-    // Separate online outlets (state-matched, no distance limit) from physical outlets
-    const onlineOutlets: any[] = [];
-    const physicalOutlets: any[] = [];
-
-    for (const outlet of filteredOutlets) {
-      const storeType = outlet.store_type || 'physical';
-      if (storeType === 'online' || storeType === 'both') {
-        // Online outlets: match by state (case-insensitive)
-        const outletState = (outlet.state || '').toLowerCase().replace(/\s*state\s*/i, '').trim();
-        const normalizedCustomerState = (customerState || '').replace(/\s*state\s*/i, '').trim();
-        
-        console.log(`Online outlet "${outlet.outlet_name}" state="${outletState}" vs customer="${normalizedCustomerState}"`);
-        
-        const stateMatch = normalizedCustomerState && outletState && (
-          outletState === normalizedCustomerState ||
-          outletState.includes(normalizedCustomerState) ||
-          normalizedCustomerState.includes(outletState)
-        );
-        
-        if (stateMatch) {
-          onlineOutlets.push(outlet);
-        }
-        // If store_type is 'both', also check distance for physical discovery
-        if (storeType === 'both' && outlet.latitude && outlet.longitude) {
-          physicalOutlets.push(outlet);
-        }
-      } else {
-        physicalOutlets.push(outlet);
-      }
-    }
-
-    // First pass: quick Haversine filter for physical candidates
-    const candidates = physicalOutlets.filter((outlet: any) => {
-      if (!outlet.latitude || !outlet.longitude) return false;
-      const distance = haversineDistance(customer_lat, customer_lon, outlet.latitude, outlet.longitude);
-      const outletRadius = outlet.sales_radius ?? maxVisibilityRadius;
-      return distance <= outletRadius * 1.5;
-    });
-
-    // Second pass: get accurate Google Maps distances for physical candidates
-    const nearbyVendors = [];
-    const addedOutletIds = new Set<string>();
-
-    for (const outlet of candidates) {
+    // Browse list: straight-line distance only. ZERO Google Distance Matrix
+    // calls. Each outlet appears once (physical-in-radius, else state-matched
+    // online). Road distance is computed only when a customer opens a store
+    // or requests a delivery quote.
+    const selected = selectBrowseOutlets(
+      filteredOutlets as any[],
+      { lat: customer_lat, lng: customer_lon, state: customerState },
+      maxVisibilityRadius,
+    );
+    const nearbyVendors: any[] = [];
+    for (const { outlet, distanceKm, kind } of selected) {
       const vendor = (outlet as any).vendors;
-      // Use vendor→customer direction (delivery route) for accurate distance
-      const gmResult = await getGoogleMapsDistance(
-        outlet.latitude, outlet.longitude, customer_lat, customer_lon
-      );
-      const distance = gmResult.distanceKm;
-      const outletRadius = outlet.sales_radius ?? maxVisibilityRadius;
-
-      if (distance > outletRadius) {
-        console.log(`Outlet ${vendor?.name} – ${outlet.outlet_surname} excluded: ${distance}km (${gmResult.source}) > ${outletRadius}km`);
-        continue;
-      }
-
-      // GPS drift compensation: treat distances under 500m as 0
-      const effectiveDistance = distance < 0.5 ? 0 : distance;
-      const dynamicDeliveryFee = effectiveDistance <= baseDeliveryDistanceKm
+      if (!vendor) continue;
+      const effective = distanceKm < 0.5 ? 0 : distanceKm;
+      const fee = effective <= baseDeliveryDistanceKm
         ? baseDeliveryFee
-        : Math.round(baseDeliveryFee + (effectiveDistance - baseDeliveryDistanceKm) * perKmFee);
-
-      addedOutletIds.add(outlet.id);
+        : Math.round(baseDeliveryFee + (effective - baseDeliveryDistanceKm) * perKmFee);
       nearbyVendors.push({
         id: vendor.id,
         name: vendor.name,
@@ -380,95 +337,35 @@ serve(async (req) => {
         logo_url: vendor.logo_url,
         banner_url: vendor.banner_url,
         category: vendor.category,
-        rating: outlet.rating ?? vendor.rating,
-        total_ratings: outlet.total_ratings ?? vendor.total_ratings,
+        rating: (outlet as any).rating ?? vendor.rating,
+        total_ratings: (outlet as any).total_ratings ?? vendor.total_ratings,
         is_active: true,
-        is_open: (outlet.admin_force_closed || vendor.admin_force_closed) ? false : outlet.is_open,
-        admin_force_closed: !!(outlet.admin_force_closed || vendor.admin_force_closed),
+        is_open: ((outlet as any).admin_force_closed || vendor.admin_force_closed) ? false : (outlet as any).is_open,
+        admin_force_closed: !!((outlet as any).admin_force_closed || vendor.admin_force_closed),
         phone: vendor.phone,
         email: vendor.email,
         slug: vendor.slug,
         outlet_id: outlet.id,
-        outlet_name: outlet.outlet_name,
-        outlet_surname: outlet.outlet_surname,
-        address: outlet.address,
-        city: outlet.city,
-        state: outlet.state,
+        outlet_name: (outlet as any).outlet_name,
+        outlet_surname: (outlet as any).outlet_surname,
+        address: (outlet as any).address,
+        city: (outlet as any).city,
+        state: (outlet as any).state,
         latitude: outlet.latitude,
         longitude: outlet.longitude,
-        delivery_mode: outlet.delivery_mode,
-        distance: distance,
-        dynamic_delivery_fee: dynamicDeliveryFee,
-        estimated_delivery_minutes: gmResult.durationMinutes,
-        distance_source: gmResult.source,
-        display_name: outlet.outlet_surname
-          ? `${vendor.name} – ${outlet.outlet_surname}`
+        delivery_mode: (outlet as any).delivery_mode,
+        distance: distanceKm,
+        dynamic_delivery_fee: fee,
+        estimated_delivery_minutes: Math.round((distanceKm / 25) * 60),
+        distance_source: kind === "online" ? "online_estimate" : "straight_line_estimate",
+        distance_is_estimate: true,
+        fee_is_estimate: true,
+        display_name: (outlet as any).outlet_surname
+          ? `${vendor.name} – ${(outlet as any).outlet_surname}`
           : vendor.name,
-        store_type: outlet.store_type,
-        social_media_handles: outlet.social_media_handles,
+        store_type: (outlet as any).store_type,
+        social_media_handles: (outlet as any).social_media_handles,
       });
-    }
-
-    // Add online outlets (state-matched, no distance restriction)
-    for (const outlet of onlineOutlets) {
-      if (addedOutletIds.has(outlet.id)) continue;
-      addedOutletIds.add(outlet.id);
-      const vendor = (outlet as any).vendors;
-
-      // Calculate actual distance for delivery fee if coords available
-      let onlineDistance = 0;
-      let onlineFee = baseDeliveryFee;
-      let onlineEta: number | null = null;
-      let onlineSource = 'online';
-
-      if (outlet.latitude && outlet.longitude) {
-        // Use vendor→customer direction for consistency
-        const onlineGm = await getGoogleMapsDistance(
-          outlet.latitude, outlet.longitude, customer_lat, customer_lon
-        );
-        onlineDistance = onlineGm.distanceKm;
-        onlineEta = onlineGm.durationMinutes;
-        onlineSource = onlineGm.source;
-        const effectiveOnlineDist = onlineDistance < 0.5 ? 0 : onlineDistance;
-        onlineFee = effectiveOnlineDist <= baseDeliveryDistanceKm
-          ? baseDeliveryFee
-          : Math.round(baseDeliveryFee + (effectiveOnlineDist - baseDeliveryDistanceKm) * perKmFee);
-      }
-
-      nearbyVendors.push({
-        id: vendor.id,
-        name: vendor.name,
-        description: vendor.description,
-        logo_url: vendor.logo_url,
-        banner_url: vendor.banner_url,
-        category: vendor.category,
-        rating: outlet.rating ?? vendor.rating,
-        total_ratings: outlet.total_ratings ?? vendor.total_ratings,
-        is_active: true,
-        is_open: (outlet.admin_force_closed || vendor.admin_force_closed) ? false : outlet.is_open,
-        admin_force_closed: !!(outlet.admin_force_closed || vendor.admin_force_closed),
-        phone: vendor.phone,
-        email: vendor.email,
-        slug: vendor.slug,
-        outlet_id: outlet.id,
-        outlet_name: outlet.outlet_name,
-        outlet_surname: outlet.outlet_surname,
-        address: outlet.address,
-        city: outlet.city,
-        state: outlet.state,
-        latitude: outlet.latitude,
-        longitude: outlet.longitude,
-        delivery_mode: outlet.delivery_mode,
-        distance: onlineDistance,
-        dynamic_delivery_fee: onlineFee,
-        estimated_delivery_minutes: onlineEta,
-        distance_source: onlineSource,
-        display_name: outlet.outlet_surname
-          ? `${vendor.name} – ${outlet.outlet_surname}`
-          : vendor.name,
-        store_type: outlet.store_type,
-        social_media_handles: outlet.social_media_handles,
-});
     }
 
     // Sort: open first, then by distance
@@ -477,7 +374,7 @@ serve(async (req) => {
       return a.distance - b.distance;
     });
 
-    console.log(`Found ${nearbyVendors.length} outlets within radius (Google Maps enhanced)`);
+    console.log(`Found ${nearbyVendors.length} outlets within radius (straight-line, no Distance Matrix)`);
 
     return new Response(
       JSON.stringify({

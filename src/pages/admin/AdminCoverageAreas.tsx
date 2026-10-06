@@ -1,3 +1,5 @@
+/// <reference types="google.maps" />
+import { fetchBrowserMapsKey } from '@/lib/googleMapsBrowserKey';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Button } from '@/components/ui/button';
@@ -33,7 +35,7 @@ function loadGoogleMaps(apiKey: string): Promise<void> {
   if (googleMapsLoaded) return Promise.resolve();
   if (googleMapsPromise) return googleMapsPromise;
   googleMapsPromise = new Promise((resolve, reject) => {
-    if (window.google?.maps) { googleMapsLoaded = true; resolve(); return; }
+    if ((window as any).google?.maps) { googleMapsLoaded = true; resolve(); return; }
     const script = document.createElement('script');
     script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=drawing,places`;
     script.async = true;
@@ -88,14 +90,10 @@ export default function AdminCoverageAreas() {
     let cancelled = false;
     (async () => {
       try {
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        const supabaseAnonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-        const response = await fetch(`${supabaseUrl}/functions/v1/get-google-maps-key`, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${supabaseAnonKey}`, 'apikey': supabaseAnonKey, 'Content-Type': 'application/json' },
-        });
-        const data = await response.json();
-        if (!data?.key || cancelled) return;
+        let data: { key: string } | null = null;
+        try { data = { key: await fetchBrowserMapsKey() }; }
+        catch (e) { toast({ title: 'Map unavailable', description: (e as Error).message, variant: 'destructive' }); return; }
+        if (cancelled) return;
         await loadGoogleMaps(data.key);
         if (cancelled || !mapRef.current) return;
 
