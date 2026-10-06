@@ -142,7 +142,7 @@ describe('rider client lifecycle and cleanup', () => {
   it('tracks only active deliveries for the signed-in rider and honours the kill switch', () => {
     expect(hook).toMatch(/\.eq\('rider_id', riderUserId\)/);
     expect(hook).toMatch(/ACTIVE_TRACKING_STATUSES/);
-    expect(hook).toMatch(/const active = cfg\.enabled && !!riderUserId && orders\.length > 0/);
+    expect(hook).toMatch(/const active = cfg\.enabled && !!riderUserId && online && orders\.length > 0/);
     expect(hook).toMatch(/if \(r\?\.stop\)/);
   });
   it('clears watcher, heartbeat and listeners', () => {

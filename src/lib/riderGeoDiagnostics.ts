@@ -59,7 +59,23 @@ export const GEO_HELP: Record<GeoProblem, { title: string; body: string }> = {
   app_permission_denied: { title: 'Location permission denied', body: 'Open phone Settings → Apps → FastCalories → Permissions → Location → Allow while using the app, then tap Retry.' },
   permission_prompt: { title: 'Allow location to share with your customer', body: 'Tap Retry and choose Allow when asked.' },
   timeout: { title: 'Still looking for GPS signal', body: 'Move near a window or outdoors, keep the app open, then tap Retry.' },
-  position_unavailable: { title: "Can't get your location", body: 'Your phone location may be off or unable to get a fix. Check Location (and Google Location Accuracy) is on, then tap Retry.' },
+  position_unavailable: {
+    title: "Phone can't find your position",
+    body: 'Permission is fine, but Android returned no location. On Android: Settings → Location → Location services → Google Location Accuracy ON; Wi-Fi scanning and Bluetooth scanning ON. Settings → Apps → Chrome (or FastCalories) → Permissions → Location → Allow while using app, with Precise location ON. Turn off Battery saver / Data saver for the app. Move near a window or outdoors, then tap Retry.',
+  },
   insecure_context: { title: 'Open the secure app', body: 'Location only works on https://app.fastcalories.online. Open that address and try again.' },
   unsupported: { title: 'Browser not supported', body: 'This browser cannot share location. Open the app in Chrome, or update it.' },
 };
+
+/**
+ * First-fix ladder: recent cached fix → balanced (network/Wi-Fi) → high-accuracy
+ * GPS. Stops at the first usable fix or a permission denial; never loops.
+ */
+export const FIRST_FIX_LADDER: PositionOptions[] = [
+  { enableHighAccuracy: false, maximumAge: 120_000, timeout: 5_000 },
+  { enableHighAccuracy: false, maximumAge: 30_000, timeout: 15_000 },
+  { enableHighAccuracy: true, maximumAge: 0, timeout: 20_000 },
+];
+
+/** Problems that need the rider to change a setting/tap, not auto-recovery. */
+export const NEEDS_RIDER_ACTION: GeoProblem[] = ['site_permission_denied', 'app_permission_denied', 'permission_prompt', 'insecure_context', 'unsupported'];

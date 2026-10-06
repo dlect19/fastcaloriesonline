@@ -14,14 +14,14 @@ import { Geolocation } from '@capacitor/geolocation';
 import { supabase } from '@/integrations/supabase/client';
 import { useTrackingConfig } from '@/hooks/useTrackingConfig';
 import {
-  classifyNativeError, classifyWebError, webPreflight, type GeoProblem, type WebPermState,
+  classifyNativeError, classifyWebError, webPreflight, FIRST_FIX_LADDER, NEEDS_RIDER_ACTION, type GeoProblem, type WebPermState,
 } from '@/lib/riderGeoDiagnostics';
 import {
   ACTIVE_TRACKING_STATUSES, isMoving, isUsableFix, LatestOnlyBuffer, shouldPublish, type Fix,
 } from '@/lib/riderTracking';
 
 export type RiderTrackingStatus =
-  | 'idle' | 'starting' | 'tracking' | 'problem' | 'update_required' | 'disabled';
+  | 'idle' | 'paused_offline' | 'starting' | 'tracking' | 'problem' | 'update_required' | 'disabled';
 
 export const ORDER_POLL_MS = 30_000;
 
@@ -52,7 +52,28 @@ async function nativePermission(): Promise<GeoProblem | null> {
 
 const FIX_TIMEOUT_MS = 15_000;
 
-export function useRiderLiveTracking(riderUserId: string | null | undefined) {
+export interface TrackingDiagnostics {
+  online: boolean; assigned: number; platform: 'native' | 'browser'; secure: boolean; lastCode: string | null;
+}
+
+/** Runs one fix ladder step-by-step; stops on the first fix or a permission denial. */
+export function runFixLadder(
+  get: (o: PositionOptions) => Promise<Fix>,
+  isDenied: (e: any) => boolean,
+  ladder: PositionOptions[] = FIRST_FIX_LADDER,
+): Promise<Fix> {
+  return ladder.reduce<Promise<Fix>>(
+    (prev, opt) => prev.catch((e) => (e && e !== LADDER_START && isDenied(e) ? Promise.reject(e) : get(opt))),
+    Promise.reject(LADDER_START),
+  );
+}
+const LADDER_START = { ladderStart: true };
+
+export function useRiderLiveTracking(riderUserId: string | null | undefined, opts: { online?: boolean } = {}) {
+  const online = opts.online ?? true;
+  const onlineRef = useRef(online);
+  onlineRef.current = online;
+  const [lastCode, setLastCode] = useState<string | null>(null);
   const cfg = useTrackingConfig();
   const [status, setStatus] = useState<RiderTrackingStatus>('idle');
   const [orders, setOrders] = useState<{ id: string; status: string }[]>([]);
@@ -60,6 +81,9 @@ export function useRiderLiveTracking(riderUserId: string | null | undefined) {
   const [attempt, setAttempt] = useState(0);
   const [problem, setProblem] = useState<GeoProblem | null>(null);
   const onFixRef = useRef<(f: Fix) => void>(() => {});
+  const problemRef = useRef<GeoProblem | null>(null);
+  problemRef.current = problem;
+  const ordersCountRef = useRef(0);
   const trackingRef = useRef(false);
   trackingRef.current = status === 'tracking';
   const lastSentRef = useRef<Fix | null>(null);
@@ -69,6 +93,7 @@ export function useRiderLiveTracking(riderUserId: string | null | undefined) {
   const bufferRef = useRef(new LatestOnlyBuffer());
   const ordersRef = useRef(orders);
   ordersRef.current = orders;
+  ordersCountRef.current = orders.length;
   const loadRef = useRef<() => void>(() => {});
 
   // Active deliveries for this rider (server RLS: rider sees own orders).
@@ -102,12 +127,13 @@ export function useRiderLiveTracking(riderUserId: string | null | undefined) {
     };
   }, [riderUserId, cfg.enabled]);
 
-  const active = cfg.enabled && !!riderUserId && orders.length > 0;
+  // Tracking runs only while the rider is Online AND has an eligible delivery.
+  const active = cfg.enabled && !!riderUserId && online && orders.length > 0;
 
   useEffect(() => {
     if (!cfg.enabled) setStatus('disabled');
-    else if (!active) { setStatus('idle'); setProblem(null); }
-  }, [active, cfg.enabled]);
+    else if (!active) { setStatus(!online && orders.length > 0 ? 'paused_offline' : 'idle'); setProblem(null); }
+  }, [active, cfg.enabled, online, orders.length]);
 
   useEffect(() => {
     if (!active) return;
@@ -155,6 +181,7 @@ export function useRiderLiveTracking(riderUserId: string | null | undefined) {
       if (stopped) return;
       // A transient timeout while already tracking is not shown as a failure.
       if (trackingRef.current && p === 'timeout') return;
+      setLastCode(p);
       setStatus('problem'); setProblem(p);
     };
     const onWebError = async (code?: number) => fail(classifyWebError(code, await webPermState()));
@@ -171,21 +198,19 @@ export function useRiderLiveTracking(riderUserId: string | null | undefined) {
       ? Geolocation.getCurrentPosition(o).then(toFix)
       : new Promise<Fix>((res, rej) => navigator.geolocation.getCurrentPosition((p) => res(toFix(p)), rej, o));
 
-    // First fix: bounded high-accuracy attempt, then ONE lower-accuracy /
-    // recent-cached attempt on timeout. No loops.
+    // First fix: cached → balanced (network/Wi-Fi) → high-accuracy GPS.
+    // High accuracy is never required for the first fix. Bounded, no loops.
+    const isDenied = (e: any) => native ? classifyNativeError(e?.message) === 'app_permission_denied' : e?.code === 1;
     const firstFix = async (): Promise<boolean> => {
       forceRef.current = true;
-      try { onFix(await getOnce({ enableHighAccuracy: true, maximumAge: 15_000, timeout: FIX_TIMEOUT_MS })); return true; }
+      try { onFix(await runFixLadder(getOnce, isDenied)); return true; }
       catch (e: any) {
-        const timedOut = native ? classifyNativeError(e?.message) === 'timeout' : e?.code === 3;
-        if (timedOut) {
-          try { onFix(await getOnce({ enableHighAccuracy: false, maximumAge: 60_000, timeout: FIX_TIMEOUT_MS })); return true; }
-          catch (e2: any) { e = e2; }
-        }
         if (native) fail(classifyNativeError(e?.message)); else await onWebError(e?.code);
         return false;
       }
     };
+    // Watch errors after a recent good fix are transient; don't flash a banner.
+    const recentFix = () => !!lastFixRef.current && Date.now() - lastFixRef.current.capturedAt < 120_000;
 
     (async () => {
       if (native) {
@@ -202,12 +227,12 @@ export function useRiderLiveTracking(riderUserId: string | null | undefined) {
       try {
         if (native) {
           const id = await Geolocation.watchPosition(opts, (pos, err) => {
-            if (err) { fail(classifyNativeError(err?.message)); return; }
+            if (err) { if (!recentFix()) fail(classifyNativeError(err?.message)); return; }
             if (pos) onFix(toFix(pos));
           });
           if (stopped) Geolocation.clearWatch({ id }); else watchId = id;
         } else {
-          watchId = navigator.geolocation.watchPosition((p) => onFix(toFix(p)), (e) => { void onWebError(e.code); }, opts);
+          watchId = navigator.geolocation.watchPosition((p) => onFix(toFix(p)), (e) => { if (e.code === 1 || !recentFix()) void onWebError(e.code); }, opts);
         }
       } catch (e: any) { fail(native ? classifyNativeError(e?.message) : 'position_unavailable'); }
     })();
@@ -219,16 +244,27 @@ export function useRiderLiveTracking(riderUserId: string | null | undefined) {
       getOnce({ enableHighAccuracy: false, maximumAge: 10_000, timeout: 15_000 }).then(onFix).catch(() => {});
     }, cfg.stationaryIntervalS * 1000);
 
+    // Auto-recover provider/timeout problems on focus, visibility or network restore.
+    // Permission problems wait for the rider's Retry tap.
+    const resume = () => {
+      if (stopped || document.visibilityState !== 'visible') return;
+      if (problemRef.current && !NEEDS_RIDER_ACTION.includes(problemRef.current)) setAttempt((n) => n + 1);
+    };
     const onOnline = () => {
       const f = bufferRef.current.take(Date.now());
       if (f && (!lastSentRef.current || f.capturedAt > lastSentRef.current.capturedAt)) void send(f);
+      resume();
     };
     window.addEventListener('online', onOnline);
+    window.addEventListener('focus', resume);
+    document.addEventListener('visibilitychange', resume);
 
     return () => {
       stopped = true;
       clearInterval(heartbeat);
       window.removeEventListener('online', onOnline);
+      window.removeEventListener('focus', resume);
+      document.removeEventListener('visibilitychange', resume);
       if (watchId !== null) {
         if (native) Geolocation.clearWatch({ id: String(watchId) }).catch(() => {});
         else navigator.geolocation.clearWatch(watchId as number);
@@ -243,27 +279,33 @@ export function useRiderLiveTracking(riderUserId: string | null | undefined) {
    * Chrome can show its prompt; on success the watcher is restarted.
    */
   const retry = useCallback(() => {
+    // Only while Online with an eligible delivery.
+    if (!onlineRef.current || ordersCountRef.current === 0) { loadRef.current(); return; }
     lastSentRef.current = null;
     forceRef.current = true;
     loadRef.current();
     setStatus('starting');
     if (!Capacitor.isNativePlatform() && 'geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (p) => {
-          onFixRef.current({
-            lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy,
-            speed: p.coords.speed, heading: p.coords.heading, capturedAt: Math.min(Date.now(), p.timestamp || Date.now()),
-          });
-          setProblem(null);
-          setAttempt((n) => n + 1); // restart watchPosition
-        },
-        async (e) => { setProblem(classifyWebError(e.code, await webPermState())); setStatus('problem'); },
-        { enableHighAccuracy: true, maximumAge: 30_000, timeout: FIX_TIMEOUT_MS },
-      );
+      const get = (o: PositionOptions) => new Promise<Fix>((res, rej) => navigator.geolocation.getCurrentPosition((p) => res({
+        lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy,
+        speed: p.coords.speed, heading: p.coords.heading, capturedAt: Math.min(Date.now(), p.timestamp || Date.now()),
+      }), rej, o));
+      // First request is issued synchronously inside the tap (user gesture).
+      const [first, ...rest] = FIRST_FIX_LADDER;
+      const firstReq = get(first);
+      firstReq.catch((e) => (e?.code === 1 ? Promise.reject(e) : runFixLadder(get, (x) => x?.code === 1, rest)))
+        .then((fix) => { onFixRef.current(fix); setProblem(null); setLastCode(null); setAttempt((n) => n + 1); })
+        .catch(async (e) => { const p = classifyWebError(e?.code, await webPermState()); setProblem(p); setLastCode(p); setStatus('problem'); });
       return;
     }
     setAttempt((n) => n + 1); // native: effect re-runs check/requestPermissions
   }, []);
 
-  return { status, problem, activeOrderCount: orders.length, retry };
+  const diagnostics: TrackingDiagnostics = {
+    online, assigned: orders.length,
+    platform: Capacitor.isNativePlatform() ? 'native' : 'browser',
+    secure: typeof window === 'undefined' ? true : window.isSecureContext !== false,
+    lastCode,
+  };
+  return { status, problem, activeOrderCount: orders.length, retry, diagnostics };
 }
