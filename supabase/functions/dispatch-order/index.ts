@@ -5,6 +5,7 @@ import { countRiderActiveOrders } from '../_shared/riderCapacity.ts';
 import { isLiveRoundConflict } from '../_shared/dispatchConflict.ts';
 import { resolveOfferTtlSeconds } from '../_shared/dispatchTtl.ts';
 import { buildDispatchPushRequest } from '../_shared/dispatchPush.ts';
+import { getSharedWeather } from '../_shared/weather-service.ts';
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -74,26 +75,6 @@ interface PayoutBreakdown {
 // Google Maps is used for the final delivery distance calculation
 function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
   return haversineDistance(lat1, lon1, lat2, lon2);
-}
-
-/**
- * Fetch real-time weather from Open-Meteo (free, no API key).
- * Returns 'clear' | 'rain' | 'storm' based on WMO weather codes.
- */
-async function fetchWeatherCondition(lat: number, lon: number): Promise<string> {
-  try {
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`;
-    const res = await fetch(url);
-    if (!res.ok) return 'clear';
-    const data = await res.json();
-    const code = data?.current_weather?.weathercode ?? 0;
-    // WMO codes: 0-3 = clear/cloudy, 51-67 = drizzle/rain, 71-77 = snow, 80-82 = showers, 95-99 = thunderstorm
-    if (code >= 95) return 'storm';
-    if (code >= 51) return 'rain';
-    return 'clear';
-  } catch {
-    return 'clear';
-  }
 }
 
 async function getDispatchSettings(supabase: any) {
@@ -578,8 +559,11 @@ Deno.serve(async (req) => {
     // Auto-detect weather from customer or vendor location
     const weatherLat = customerLat || pickupLat;
     const weatherLon = customerLon || pickupLng;
-    const detectedWeather = await fetchWeatherCondition(weatherLat, weatherLon);
-    console.log(`Auto-detected weather: ${detectedWeather} at (${weatherLat}, ${weatherLon})`);
+    // Shared 15-minute cached weather (same source as quotes/checkout). Rider
+    // payout only — the customer's delivery_fee is never changed here.
+    const weather = await getSharedWeather(supabase, weatherLat, weatherLon, 'dispatch-order');
+    const detectedWeather = weather.condition;
+    console.log(`Weather for dispatch: ${detectedWeather} (source=${weather.source})`);
 
     // Re-apply detected weather to payout settings
     const payoutSettingsWithWeather = getPayoutSettings(settingsMap, detectedWeather);

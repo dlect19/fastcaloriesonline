@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getWeatherProvider } from "../_shared/weather-provider.ts";
+import { getSharedWeather, loadWeatherSettings } from "../_shared/weather-service.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -71,47 +71,19 @@ serve(async (req) => {
       grid.set('6.5,3.3', { lat: 6.5244, lon: 3.3792, name: 'Lagos' });
     }
 
-    const surgeClear = parseFloat(s.rider_weather_surge_clear || '0');
-    const surgeRain = parseFloat(s.rider_weather_surge_rain || '100');
-    const surgeStorm = parseFloat(s.rider_weather_surge_storm || '300');
-
-    const providerName = s.weather_service_provider || 'open-meteo';
-    const provider = getWeatherProvider(providerName);
-
+    // Same shared service and grid as dispatch/quotes: grids with a fresh
+    // (<15 min) reading are not re-fetched, and every call is logged there.
+    const ws = await loadWeatherSettings(supabase);
+    const ws2 = forceRun ? { ...ws, enabled: true } : ws;
     let updated = 0;
-    for (const [areaKey, { lat, lon, name }] of grid) {
-      try {
-        const w = await provider.fetch(lat, lon);
-        const surge = w.condition === 'storm' ? surgeStorm : w.condition === 'rain' ? surgeRain : surgeClear;
-        await supabase.from('weather_cache').upsert({
-          area_key: areaKey,
-          area_name: name,
-          latitude: lat,
-          longitude: lon,
-          condition: w.condition,
-          temperature: w.temperature,
-          rain_status: w.rain_status,
-          wind_speed: w.wind_speed,
-          surge_amount: surge,
-          provider: provider.name,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'area_key' });
-
-        await supabase.from('api_usage_log').insert({
-          provider: provider.name, endpoint: 'current_weather',
-          outcome: 'success', cost_estimate_usd: 0,
-        });
-        updated++;
-      } catch (e) {
-        console.warn('weather fetch failed for', areaKey, e);
-        await supabase.from('api_usage_log').insert({
-          provider: provider.name, endpoint: 'current_weather',
-          outcome: 'failed', cost_estimate_usd: 0,
-        });
-      }
+    let cached = 0;
+    for (const [, { lat, lon }] of grid) {
+      const r = await getSharedWeather(supabase, lat, lon, 'refresh-weather', ws2);
+      if (r.source === 'live') updated++;
+      else if (r.source === 'cache') cached++;
     }
 
-    return new Response(JSON.stringify({ ok: true, areas_updated: updated }), {
+    return new Response(JSON.stringify({ ok: true, areas_updated: updated, areas_fresh: cached, areas_total: grid.size }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (err) {
