@@ -159,7 +159,7 @@ describe('usage logging', () => {
   it('every Google Maps server call site logs usage', () => {
     const sites = walk(FN).filter((f) => /maps\.googleapis\.com|connector-gateway\.lovable\.dev\/google_maps/.test(read(f)));
     for (const f of sites) {
-      expect(read(f), f).toMatch(/logGoogleUsage|logUsage\(|logWaGeocode/);
+      expect(read(f), f).toMatch(/logGoogleUsage|logUsage\(|logWaGeocode|logGoogleUsageLite/);
     }
   });
 });
