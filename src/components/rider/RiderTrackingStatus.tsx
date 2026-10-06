@@ -32,7 +32,7 @@ export function RiderTrackingStatus({ status, problem, activeOrderCount, onRetry
           {code && <p className="text-[10px] text-muted-foreground mt-0.5">Support code: {code}</p>}
           {warn && diagnostics && (
             <p data-testid="tracking-diagnostics" className="text-[10px] text-muted-foreground">
-              {`online=${diagnostics.online ? 'yes' : 'no'} · assigned=${diagnostics.assigned} · ${diagnostics.platform} · secure=${diagnostics.secure ? 'yes' : 'no'} · last=${diagnostics.lastCode ?? 'none'}`}
+              {`online=${diagnostics.online ? 'yes' : 'no'} · assigned=${diagnostics.assigned} · ${diagnostics.platform} · secure=${diagnostics.secure ? 'yes' : 'no'} · last=${diagnostics.lastCode ?? 'none'} · stage=${diagnostics.stage ?? 'none'}`}
             </p>
           )}
         </div>
