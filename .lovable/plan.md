@@ -1,33 +1,24 @@
-# Diagnosis: "This page didn't load Google Maps correctly" in Pin Your Exact Location
+# Diagnosis: map fails in the installed mobile app (works on desktop web)
 
-## What was checked
-- Preview telemetry for this message has no console or network entries for Google Maps, so the exact error code (e.g. RefererNotAllowedMapError) is not captured and cannot be proven from here.
-- The map loads with `https://maps.googleapis.com/maps/api/js?key=<browser key>&libraries=places` (MapLocationPicker). Key comes from get-google-maps-key, which returned 200 with a key earlier, so the key is delivered. The failure happens inside Google's check of that key.
-- Google's grey "Something went wrong" box only appears after the script loads and Google rejects the key/referrer/project. A missing key or blocked endpoint would show our own app error, not this box.
+## Findings (from config and code)
+- The installed app is **bundled**, not a remote wrapper: the shipped `capacitor.config.json` has no `server.url` (it is only set when `CAP_SERVER_URL` is passed at build time). Pages load from the app's own local origin.
+- No `hostname`, `androidScheme` or `iosScheme` override, so Capacitor defaults apply:
+  - **Android:** page origin `https://localhost`; Google receives referrer `https://localhost/...`
+  - **iOS:** page origin `capacitor://localhost`; Google receives referrer `capacitor://localhost/...` (or none)
+- Our key service (`isAllowedOrigin`) already accepts `https://localhost`, `http://localhost` and `capacitor://localhost`, so the app does get the browser key. The grey Google error comes from Google rejecting the referrer on the key.
 
-## Where the preview runs
-The editor preview is served from `https://id-preview--35bd9daf-0ce9-4743-a361-ec2d45be6932.lovable.app` (inside an iframe on lovable.dev). Some preview views use `https://35bd9daf-0ce9-4743-a361-ec2d45be6932.lovableproject.com`. Google checks the page that loads the script (the iframe), not lovable.dev.
+## Root cause
+- **Android:** the browser key's website list doesn't include `https://localhost/*` (or the change hasn't taken effect yet). Desktop works because `app.fastcalories.online` is on the list. The error should be RefererNotAllowedMapError.
+- **iOS:** Google's website restrictions only accept http/https referrers, so `capacitor://localhost` can never match. The map can't load on iOS with a website-restricted key unless the app's local address changes.
 
-## Ranked likely causes
-1. **RefererNotAllowedMapError (most likely):** the allowed websites list on the browser key lacks the preview address or uses the wrong pattern.
-2. **ApiNotActivatedMapError:** Maps JavaScript API is not turned on in the key's Google Cloud project, or the key's API list leaves it out.
-3. **Places library blocked:** `libraries=places` needs **Places API** (the older one) turned on and allowed on the key. Allowing only "Places API (New)" can fail.
-4. **BillingNotEnabledMapError:** no billing account is linked to that Google Cloud project.
-5. **InvalidKeyMapError:** wrong value pasted (extra spaces, or a key from a different project).
+## Google Cloud settings (browser key, keep it restricted)
+- Websites: `https://app.fastcalories.online/*`, `https://*.lovable.app/*`, `https://*.lovableproject.com/*`, `https://localhost/*`
+- APIs: Maps JavaScript API and Places API only.
+- Do not use an unrestricted key and do not add wildcards like `*`.
 
-## Exact Google Cloud settings (browser key)
-- Application restriction: Websites. Add all of these:
-  - `https://app.fastcalories.online/*`
-  - `https://*.lovable.app/*`
-  - `https://*.lovableproject.com/*`
-  - `https://localhost/*` (Android app)
-- API restrictions: Maps JavaScript API and Places API (and Places API (New) if listed).
-- APIs and Services > Library: turn on Maps JavaScript API and Places API in the **same project** as the key.
-- Billing: link an active billing account to that project.
-- Changes can take up to 5 minutes to apply.
+## Minimal fix options (need approval, none applied)
+1. **Recommended, small config change:** set `server.iosScheme: 'https'` and `server.hostname: 'localhost'` in capacitor.config.ts so iOS also uses `https://localhost`. One referrer then covers both platforms. Requires a new iOS build. Saved local data (login, storage) on iOS moves to the new address, so users may need to sign in again once.
+2. **Safer long-term alternative:** a separate mobile-only Maps key with no website restriction, limited to the Maps JavaScript API with a daily quota cap, sent only to requests from the native app. Website restrictions on `localhost` can be faked by anyone running a local page, so a strict daily quota is the real safeguard either way.
 
-## How to get the exact code (no code change)
-Open the preview, press F12 > Console, open the modal and read the line starting with "Google Maps JavaScript API error: ...". Or open https://app.fastcalories.online and try the same modal. If production works and the preview fails, cause 1 is confirmed for the preview address.
-
-## Optional follow-up (needs approval)
-Show Google's error code inside the map box (via `gm_authFailure`) so admins see it without opening the console. No billing impact.
+## Verify after the owner's change
+Open the map on Android after about 5 minutes. If it still fails, use Chrome remote debugging (needs a debug build, since WebView debugging is off in release) to read the exact Google error code.
