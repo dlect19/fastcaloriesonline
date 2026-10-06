@@ -11,6 +11,8 @@ import { usePlatformSettings } from '@/hooks/usePlatformSettings';
 import { useAuth } from '@/hooks/useAuth';
 import { Gift, Sparkles, Clock, ArrowLeft, Trophy, Star, Percent, Wallet } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { isNativeIosSpin } from '@/lib/spinPlatform';
+import { OfficialSpinRules } from '@/components/spin/OfficialSpinRules';
 
 export default function Rewards() {
   const navigate = useNavigate();
@@ -19,6 +21,7 @@ export default function Rewards() {
   const { eligibility, settings: promoSettings } = usePlatformPromos();
   const { settings } = usePlatformSettings();
   const [activeTab, setActiveTab] = useState('free');
+  const nativeIos = isNativeIosSpin();
 
   // Get spins per tier from settings
   const tier1Spins = parseInt(settings?.spin_tier1_spins || '1');
@@ -39,6 +42,7 @@ export default function Rewards() {
             <Button onClick={() => navigate('/auth')}>
               Login Now
             </Button>
+            <div className="mt-4"><OfficialSpinRules /></div>
           </CardContent>
         </Card>
       </div>
@@ -144,6 +148,11 @@ export default function Rewards() {
             </CardTitle>
           </CardHeader>
           <CardContent>
+            {nativeIos ? (
+              spinEnabled.free ? <SpinWheel wheelType="free" /> : (
+                <div className="text-center py-8 text-muted-foreground">Free spins are currently disabled</div>
+              )
+            ) : (
             <Tabs value={activeTab} onValueChange={setActiveTab}>
               <TabsList className="w-full grid grid-cols-4 mb-6">
                 <TabsTrigger value="free" className="relative text-xs sm:text-sm">
@@ -197,6 +206,7 @@ export default function Rewards() {
                 )}
               </TabsContent>
             </Tabs>
+            )}
           </CardContent>
         </Card>
 
@@ -208,28 +218,33 @@ export default function Rewards() {
           <CardContent className="space-y-4 text-sm text-muted-foreground">
             <div className="flex gap-3">
               <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">1</div>
-              <p>Get one <strong>free spin</strong> every day. If you land on "Try Again", you get one bonus spin!</p>
+              <p>{nativeIos ? 'Get one free spin every day. If you land on ‘Try Again,’ you receive one bonus spin.' : <>Get one <strong>free spin</strong> every day. If you land on "Try Again", you get one bonus spin!</>}{nativeIos && <span className="block mt-1 font-medium text-foreground">No purchase is required.</span>}</p>
             </div>
+            {!nativeIos && (
             <div className="flex gap-3">
               <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">2</div>
               <p>Purchase spin packs: <strong>Bronze (₦100) = {tier1Spins} spin{tier1Spins > 1 ? 's' : ''}</strong>, <strong>Silver (₦200) = {tier2Spins} spins</strong>, <strong>Gold (₦500) = {tier3Spins} spins</strong>.</p>
             </div>
+            )}
             <div className="flex gap-3">
-              <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">3</div>
+              <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">{nativeIos ? 2 : 3}</div>
               <p>All wheels have the same segments: <strong>{segmentDiscounts}%, Try Again</strong>.</p>
             </div>
             <div className="flex gap-3">
-              <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">4</div>
+              <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">{nativeIos ? 3 : 4}</div>
               <p>Discounts are valid for <strong>24 hours</strong> and can only be used with <strong>wallet payment</strong>.</p>
             </div>
             <div className="flex gap-3">
-              <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">5</div>
+              <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">{nativeIos ? 4 : 5}</div>
               <p>Only <strong>one discount</strong> can be used per order (no stacking).</p>
             </div>
           </CardContent>
         </Card>
 
+        <OfficialSpinRules />
+
         {/* Fund Wallet CTA */}
+        {!nativeIos && (
         <Card className="bg-gradient-to-br from-primary/10 to-accent/10 border-0">
           <CardContent className="p-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -244,6 +259,7 @@ export default function Rewards() {
             </Button>
           </CardContent>
         </Card>
+        )}
       </div>
     </div>
   );

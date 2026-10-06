@@ -9,6 +9,7 @@ import { useCustomerWallet } from '@/hooks/useCustomerWallet';
 import { usePlatformSettings } from '@/hooks/usePlatformSettings';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { isSpinAllowedOnPlatform } from '@/lib/spinPlatform';
 
 interface SpinWheelProps {
   wheelType: 'free' | 'tier1' | 'tier2' | 'tier3';
@@ -105,6 +106,7 @@ export function SpinWheel({ wheelType, onSpinComplete }: SpinWheelProps) {
     : canStartNewPack;
 
   const handleSpin = async () => {
+    if (!isSpinAllowedOnPlatform(wheelType)) return;
     if (isSpinning || loading) return;
 
     if (wheelType === 'free' && !canFreeSpin && !hasTryAgain) {
@@ -221,6 +223,9 @@ export function SpinWheel({ wheelType, onSpinComplete }: SpinWheelProps) {
 
   const hasRemainingSpins = packPurchased && currentSpinIndex < totalSpins;
   const packComplete = packPurchased && currentSpinIndex >= totalSpins;
+
+  // Also suppress paid controls if this component is mounted outside Rewards.
+  if (!isSpinAllowedOnPlatform(wheelType)) return null;
 
   return (
     <div className="flex flex-col items-center gap-6">

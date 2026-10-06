@@ -5,6 +5,7 @@ import { Gift, ChevronRight, Sparkles } from 'lucide-react';
 import { useSpinWheel } from '@/hooks/useSpinWheel';
 import { usePlatformSettings } from '@/hooks/usePlatformSettings';
 import { useAuth } from '@/hooks/useAuth';
+import { isNativeIosSpin } from '@/lib/spinPlatform';
 
 export function SpinWheelWidget() {
   const navigate = useNavigate();
@@ -62,9 +63,9 @@ export function SpinWheelWidget() {
                 </>
               ) : (
                 <>
-                  <p className="font-bold text-foreground">Spin & Win</p>
+                    <p className="font-bold text-foreground">{isNativeIosSpin() ? 'Free Daily Spin' : 'Spin & Win'}</p>
                   <p className="text-sm text-muted-foreground">
-                    Multiple spins per pack!
+                      {isNativeIosSpin() ? 'No purchase required' : 'Multiple spins per pack!'}
                   </p>
                 </>
               )}
