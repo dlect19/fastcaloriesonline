@@ -67,6 +67,12 @@ export async function validateOrderPricing(
     originLat, originLng, destLat: lat, destLng: lng,
     vendorId: order.vendor_id, customerAddressId: order.delivery_address_id,
     callerFn: "checkout-price-validation",
+    // Reuse the quote's weather while still valid so checkout applies the same
+    // surge; otherwise the shared cache re-resolves and any fee change is
+    // returned as a price-change response below (never applied silently).
+    weatherSnapshot: order.delivery_pricing_meta
+      ? { condition: order.delivery_pricing_meta.weather_condition, observedAt: order.delivery_pricing_meta.weather_observed_at }
+      : null,
   }, settings);
 
   if (!quote.ok) {
