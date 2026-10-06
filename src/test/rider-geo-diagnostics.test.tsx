@@ -148,3 +148,66 @@ describe('UI and independence', () => {
     expect(src).not.toMatch(/console\.(log|info)/);
   });
 });
+
+describe('online/assignment gating and recovery', () => {
+  it('offline rider with an assignment: no GPS, no error, neutral paused state', async () => {
+    const { result } = renderHook(() => useRiderLiveTracking('r', { online: false }));
+    await waitFor(() => expect(result.current.status).toBe('paused_offline'));
+    expect(result.current.problem).toBeNull();
+    expect(getCurrent).not.toHaveBeenCalled();
+    render(<RiderTrackingStatus status="paused_offline" activeOrderCount={1} onRetry={() => {}} />);
+    expect(screen.getByText(/Live tracking paused — go Online/)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /retry/i })).toBeNull();
+  });
+
+  it('going online resumes and publishes', async () => {
+    const { result, rerender } = renderHook(({ on }) => useRiderLiveTracking('r', { online: on }), { initialProps: { on: false } });
+    await waitFor(() => expect(result.current.status).toBe('paused_offline'));
+    rerender({ on: true });
+    await waitFor(() => expect(rpc).toHaveBeenCalled());
+  });
+
+  it('going offline stops the watcher', async () => {
+    const clear = (navigator.geolocation as any).clearWatch;
+    const { rerender } = renderHook(({ on }) => useRiderLiveTracking('r', { online: on }), { initialProps: { on: true } });
+    await waitFor(() => expect(watch).toHaveBeenCalled());
+    rerender({ on: false });
+    expect(clear).toHaveBeenCalledWith(3);
+  });
+
+  it('code 2 on cached request recovers via balanced fallback (no high accuracy needed)', async () => {
+    getCurrent.mockImplementationOnce((_ok: any, err: any) => err({ code: 2 }));
+    renderHook(() => useRiderLiveTracking('r'));
+    await waitFor(() => expect(rpc).toHaveBeenCalled());
+    expect(getCurrent.mock.calls[0][2]).toMatchObject({ enableHighAccuracy: false, maximumAge: 120_000 });
+    expect(getCurrent.mock.calls[1][2]).toMatchObject({ enableHighAccuracy: false });
+  });
+
+  it('Retry while offline does not touch GPS', async () => {
+    const { result } = renderHook(() => useRiderLiveTracking('r', { online: false }));
+    await waitFor(() => expect(result.current.status).toBe('paused_offline'));
+    act(() => { result.current.retry(); });
+    expect(getCurrent).not.toHaveBeenCalled();
+  });
+
+  it('position unavailable auto-recovers on focus / network restore, bounded per event', async () => {
+    permState = 'granted';
+    getCurrent.mockImplementation((_ok: any, err: any) => err({ code: 2 }));
+    const { result } = renderHook(() => useRiderLiveTracking('r'));
+    await waitFor(() => expect(result.current.problem).toBe('position_unavailable'));
+    expect(getCurrent).toHaveBeenCalledTimes(3);
+    getCurrent.mockImplementation((ok: any) => ok(pos()));
+    await act(async () => { window.dispatchEvent(new Event('online')); });
+    await waitFor(() => expect(rpc).toHaveBeenCalled());
+    await waitFor(() => expect(result.current.status).toBe('tracking'));
+  });
+
+  it('diagnostics line has no coordinates', () => {
+    render(<RiderTrackingStatus status="problem" problem="position_unavailable" activeOrderCount={1} onRetry={() => {}}
+      diagnostics={{ online: true, assigned: 1, platform: 'browser', secure: true, lastCode: 'position_unavailable' }} />);
+    const t = screen.getByTestId('tracking-diagnostics').textContent || '';
+    expect(t).toMatch(/online=yes · assigned=1 · browser · secure=yes · last=position_unavailable/);
+    expect(t).not.toMatch(/\d+\.\d{3,}/);
+    expect(screen.getByText(/POSITION_UNAVAILABLE/)).toBeTruthy();
+  });
+});
