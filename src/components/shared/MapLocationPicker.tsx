@@ -1,3 +1,4 @@
+import { fetchBrowserMapsKey } from '@/lib/googleMapsBrowserKey';
 /// <reference types="google.maps" />
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Loader2, Search, MapPin } from 'lucide-react';
@@ -174,30 +175,11 @@ export function MapLocationPicker({ latitude, longitude, onLocationSelect, heigh
 
     (async () => {
       try {
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        const supabaseAnonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-        
-        const response = await fetch(`${supabaseUrl}/functions/v1/get-google-maps-key`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${supabaseAnonKey}`,
-            'apikey': supabaseAnonKey,
-            'Content-Type': 'application/json',
-          },
-        });
-        
-        if (!response.ok) {
-          console.error('Maps key fetch failed:', response.status, response.statusText);
-          if (!cancelled) { setError('Failed to fetch API key'); setLoading(false); }
-          return;
-        }
-        
-        const data = await response.json();
-        const apiKey = data?.key;
-        
-        if (!apiKey) {
-          console.error('No API key in response:', data);
-          if (!cancelled) { setError('API key not configured'); setLoading(false); }
+        let apiKey: string;
+        try {
+          apiKey = await fetchBrowserMapsKey();
+        } catch (e) {
+          if (!cancelled) { setError((e as Error).message || 'Map unavailable'); setLoading(false); }
           return;
         }
         

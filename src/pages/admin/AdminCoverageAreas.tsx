@@ -1,3 +1,4 @@
+import { fetchBrowserMapsKey } from '@/lib/googleMapsBrowserKey';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Button } from '@/components/ui/button';
@@ -88,14 +89,10 @@ export default function AdminCoverageAreas() {
     let cancelled = false;
     (async () => {
       try {
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        const supabaseAnonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-        const response = await fetch(`${supabaseUrl}/functions/v1/get-google-maps-key`, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${supabaseAnonKey}`, 'apikey': supabaseAnonKey, 'Content-Type': 'application/json' },
-        });
-        const data = await response.json();
-        if (!data?.key || cancelled) return;
+        let data: { key: string } | null = null;
+        try { data = { key: await fetchBrowserMapsKey() }; }
+        catch (e) { toast.error((e as Error).message || 'Map unavailable'); return; }
+        if (cancelled) return;
         await loadGoogleMaps(data.key);
         if (cancelled || !mapRef.current) return;
 
