@@ -3,8 +3,8 @@ import { act, cleanup, renderHook } from '@testing-library/react';
 import { Capacitor } from '@capacitor/core';
 import { useSpinWheel } from '@/hooks/useSpinWheel';
 
-const backend = vi.hoisted(() => ({ invoke: vi.fn() }));
-vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'test-user' } }) }));
+const backend = vi.hoisted(() => ({ invoke: vi.fn(), user: { id: 'test-user' } }));
+vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: backend.user }) }));
 vi.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: vi.fn() }) }));
 vi.mock('@/integrations/supabase/client', () => ({ supabase: {
   from: () => {
