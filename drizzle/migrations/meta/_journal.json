@@ -288,6 +288,20 @@
       "when": 1791273807369,
       "tag": "0040_google_maps_cost_controls",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1791288205766,
+      "tag": "0041_rider_live_tracking",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1791288550432,
+      "tag": "0042_rider_live_tracking_least_privilege",
+      "breakpoints": true
     }
   ]
 }

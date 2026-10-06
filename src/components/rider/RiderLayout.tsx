@@ -7,6 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { playGlobalNotificationSound } from '@/lib/globalAudio';
 import { useRiderNativeService } from '@/hooks/useRiderNativeService';
 import { useRiderLocation } from '@/hooks/useRiderLocation';
+import { useRiderLiveTracking } from '@/hooks/useRiderLiveTracking';
 import { useEnsureLocationPermissions } from '@/hooks/useEnsureLocationPermissions';
 import { useDispatchOffers } from '@/hooks/useDispatchOffers';
 import { useFreshActionable } from '@/hooks/useFreshActionable';
@@ -38,6 +39,9 @@ export function RiderLayout({ children, isOnline, onToggleOnline, canViewEarning
 
   // Auto-track rider GPS location and update DB every 30s when online
   useRiderLocation({ riderId: riderId || undefined, enabled: isOnline && !!riderId });
+
+  // Live location for the customer, only while assigned to an active delivery.
+  useRiderLiveTracking(riderId);
 
   // Gate the "go online" action behind the Prominent Disclosure + permission flow.
   const handleToggleOnline = useCallback(
