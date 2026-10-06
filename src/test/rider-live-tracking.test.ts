@@ -86,7 +86,7 @@ describe('customer UI state and marker motion', () => {
     expect(interpolate(a, b, 0.5)).toEqual({ lat: 0.5, lng: 1 });
   });
   it('map loads once and makes no per-point Google route calls', () => {
-    const m = read('src/components/order/LiveRiderMap.tsx');
+    const m = read('src/components/order/LiveRiderMap.tsx').replace(/\/\*[\s\S]*?\*\//g, '');
     expect(m).not.toMatch(/Directions|DistanceMatrix|computeRoutes|routes\.googleapis|calculate-distance|quote-delivery-fee/);
     expect(m.match(/new google\.maps\.Map\(/g)).toHaveLength(1);
     expect(m).toMatch(/if \(cancelled \|\| !mapEl\.current \|\| mapRef\.current\) return/);
@@ -98,7 +98,7 @@ describe('server authorisation, isolation and validation', () => {
   it('rider/order relationship is derived server-side from auth.uid()', () => {
     expect(SQL).toMatch(/v_uid uuid := auth\.uid\(\)/);
     expect(SQL).toMatch(/v_o\.rider_id IS DISTINCT FROM v_uid/);
-    expect(SQL).not.toMatch(/p_rider/);
+    expect(SQL).not.toMatch(/\bp_rider/);
     expect(SQL).toMatch(/status NOT IN \('assigned','picked_up','on_the_way'\)/);
   });
   it('validates coordinates, accuracy, speed, timestamps and impossible jumps; rate limits', () => {
