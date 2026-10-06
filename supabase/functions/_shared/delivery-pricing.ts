@@ -15,7 +15,8 @@
 
 import { haversineDistance } from "./google-maps.ts";
 import { getRoadDistance } from "./road-distance.ts";
-import { getWeatherProvider } from "./weather-provider.ts";
+import { getSharedWeather, loadWeatherSettings } from "./weather-service.ts";
+import { usableSnapshot, type WeatherSnapshot } from "./weather-core.ts";
 
 export const PROXIMITY_THRESHOLD_KM = 0.5;
 
@@ -140,29 +141,20 @@ function timePeriod(s: PricingSettings): "morning" | "afternoon" | "night" {
   return "morning";
 }
 
-async function currentWeatherCondition(
+/** Shared cached weather (same source as dispatch and the cart). */
+async function currentWeather(
   supabase: any,
   s: PricingSettings,
   lat: number,
   lon: number,
-): Promise<string> {
-  const areaKey = `${lat.toFixed(1)},${lon.toFixed(1)}`;
-  try {
-    const { data: cached } = await supabase
-      .from("weather_cache")
-      .select("condition, updated_at")
-      .eq("area_key", areaKey)
-      .maybeSingle();
-    if (cached?.condition && cached.updated_at) {
-      const ageMin = (Date.now() - new Date(cached.updated_at).getTime()) / 60_000;
-      if (ageMin < 15) return cached.condition;
-    }
-    const provider = getWeatherProvider(s.weatherProvider);
-    const reading = await provider.fetch(lat, lon);
-    return reading.condition;
-  } catch (_e) {
-    return "clear";
-  }
+  fn: string,
+  snapshot?: WeatherSnapshot | null,
+): Promise<{ condition: string; observedAt: string | null; source: string }> {
+  const reused = usableSnapshot(snapshot, Date.now());
+  if (reused) return { condition: reused, observedAt: snapshot!.observedAt ?? null, source: "quote_snapshot" };
+  const ws = await loadWeatherSettings(supabase);
+  const r = await getSharedWeather(supabase, lat, lon, fn, { ...ws, provider: s.weatherProvider });
+  return { condition: r.condition, observedAt: r.observedAt, source: r.source };
 }
 
 async function supplySurgePct(supabase: any, s: PricingSettings): Promise<number> {
@@ -201,6 +193,8 @@ export interface QuoteInput {
   skipCache?: boolean;
   /** Edge function name, for usage attribution. */
   callerFn?: string;
+  /** Weather from the original quote; reused at checkout while still valid. */
+  weatherSnapshot?: WeatherSnapshot | null;
 }
 
 export async function quoteDeliveryFee(
@@ -269,6 +263,8 @@ export async function quoteDeliveryFee(
   // Surge — the customer-facing portion, computed from trusted server state.
   let surgeFee = 0;
   let condition = "clear";
+  let weatherObservedAt: string | null = null;
+  let weatherSource = "not_used";
   let period = "morning";
   let supplyPct = 0;
   const baseFee = distanceFee(s, km);
@@ -283,7 +279,8 @@ export async function quoteDeliveryFee(
     }
     let weatherSurge = 0;
     if (s.weatherSurgeEnabled) {
-      condition = await currentWeatherCondition(supabase, s, dest.lat, dest.lng);
+      const w = await currentWeather(supabase, s, dest.lat, dest.lng, input.callerFn || "delivery-pricing", input.weatherSnapshot);
+      condition = w.condition; weatherObservedAt = w.observedAt; weatherSource = w.source;
       weatherSurge = condition === "storm"
         ? s.weatherSurgeStorm
         : condition === "rain" ? s.weatherSurgeRain : s.weatherSurgeClear;
@@ -306,6 +303,8 @@ export async function quoteDeliveryFee(
     meta: {
       time_period: period,
       weather_condition: condition,
+      weather_observed_at: weatherObservedAt,
+      weather_source: weatherSource,
       supply_surge_pct: supplyPct,
       per_km_fee: s.perKmFee,
       base_distance_km: s.baseDeliveryDistanceKm,

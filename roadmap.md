@@ -130,3 +130,6 @@
 - [x] Audited corrections: TOP KITCHEN, Taste Affairs, Olive Food; historical note for payout 62423211
 - [ ] Admin UI button for preview → step-up correction (RPCs ready; not yet wired)
 - [ ] Wallet 4dbb51c4 has stale pending bucket (no drift); left untouched per scope
+
+## Weather consistency
+- [x] Shared cached Open-Meteo service for dispatch, quotes, checkout, cart and admin refresh (15-min cache, 2-hour stale limit, logged)
