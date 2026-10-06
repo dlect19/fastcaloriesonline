@@ -42,7 +42,7 @@ export function RiderLayout({ children, isOnline, onToggleOnline, canViewEarning
   useRiderLocation({ riderId: riderId || undefined, enabled: isOnline && !!riderId });
 
   // Live location for the customer, only while assigned to an active delivery.
-  const liveTracking = useRiderLiveTracking(riderId);
+  const liveTracking = useRiderLiveTracking(riderId, { online: isOnline });
 
   // Gate the "go online" action behind the Prominent Disclosure + permission flow.
   const handleToggleOnline = useCallback(
@@ -129,7 +129,7 @@ export function RiderLayout({ children, isOnline, onToggleOnline, canViewEarning
         <RiderMobileHeader isOnline={isOnline} onToggleOnline={handleToggleOnline} />
         <main className="flex-1 p-4 pb-36">
           <RiderNotificationWarning userId={riderId} />
-          <RiderTrackingStatus status={liveTracking.status} problem={liveTracking.problem} activeOrderCount={liveTracking.activeOrderCount} onRetry={liveTracking.retry} />
+          <RiderTrackingStatus status={liveTracking.status} problem={liveTracking.problem} activeOrderCount={liveTracking.activeOrderCount} onRetry={liveTracking.retry} diagnostics={liveTracking.diagnostics} />
           {children}
         </main>
         <RiderBottomNav isOnline={isOnline} onToggleOnline={handleToggleOnline} canViewEarnings={canViewEarnings} />
@@ -141,7 +141,7 @@ export function RiderLayout({ children, isOnline, onToggleOnline, canViewEarning
     <div className="h-screen bg-background flex overflow-hidden">
       <RiderSidebar isOnline={isOnline} onToggleOnline={handleToggleOnline} canViewEarnings={canViewEarnings} />
       <main className="flex-1 p-8 overflow-y-auto">
-        <RiderTrackingStatus status={liveTracking.status} problem={liveTracking.problem} activeOrderCount={liveTracking.activeOrderCount} onRetry={liveTracking.retry} />
+        <RiderTrackingStatus status={liveTracking.status} problem={liveTracking.problem} activeOrderCount={liveTracking.activeOrderCount} onRetry={liveTracking.retry} diagnostics={liveTracking.diagnostics} />
         {children}
       </main>
     </div>

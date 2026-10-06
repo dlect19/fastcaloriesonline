@@ -86,15 +86,15 @@ describe('web/PWA flows', () => {
     renderHook(() => useRiderLiveTracking('r'));
     await waitFor(() => expect(rpc).toHaveBeenCalled());
     expect(getCurrent).toHaveBeenCalledTimes(2);
-    expect(getCurrent.mock.calls[1][2]).toMatchObject({ enableHighAccuracy: false, maximumAge: 60_000 });
+    expect(getCurrent.mock.calls[1][2]).toMatchObject({ enableHighAccuracy: false, maximumAge: 30_000 });
   });
 
-  it('position unavailable is reported as such after a single attempt', async () => {
+  it('position unavailable is reported after the bounded 3-step ladder', async () => {
     permState = 'granted';
     getCurrent.mockImplementation((_ok: any, err: any) => err({ code: 2 }));
     const { result } = renderHook(() => useRiderLiveTracking('r'));
     await waitFor(() => expect(result.current.problem).toBe('position_unavailable'));
-    expect(getCurrent).toHaveBeenCalledTimes(1);
+    expect(getCurrent).toHaveBeenCalledTimes(3);
     expect(watch).not.toHaveBeenCalled();
   });
 

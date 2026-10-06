@@ -1,20 +1,21 @@
 import { useState } from 'react';
 import { MapPin, MapPinOff, RefreshCw, Download, HelpCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import type { RiderTrackingStatus as S } from '@/hooks/useRiderLiveTracking';
+import type { RiderTrackingStatus as S, TrackingDiagnostics } from '@/hooks/useRiderLiveTracking';
 import { GEO_DIAGNOSTIC_CODE, GEO_HELP, type GeoProblem } from '@/lib/riderGeoDiagnostics';
 
 /**
  * Shown only while the rider has an active delivery. Foreground-only tracking.
  * Location problems are independent of notification permission.
  */
-export function RiderTrackingStatus({ status, problem, activeOrderCount, onRetry }: {
-  status: S; problem?: GeoProblem | null; activeOrderCount: number; onRetry: () => void;
+export function RiderTrackingStatus({ status, problem, activeOrderCount, onRetry, diagnostics }: {
+  status: S; problem?: GeoProblem | null; activeOrderCount: number; onRetry: () => void; diagnostics?: TrackingDiagnostics;
 }) {
   const [showHelp, setShowHelp] = useState(false);
   if (activeOrderCount === 0) return null;
   let title = ''; let body = ''; let code = ''; let warn = false;
-  if (status === 'starting') { title = 'Starting live location…'; body = "Sharing your location with this delivery's customer only."; }
+  if (status === 'paused_offline') { title = 'Live tracking paused — go Online'; body = 'Your location is shared with the customer only while you are Online with an active delivery.'; }
+  else if (status === 'starting') { title = 'Starting live location…'; body = "Sharing your location with this delivery's customer only."; }
   else if (status === 'tracking') { title = 'Live location active'; body = 'Your customer can see you on the map until delivery.'; }
   else if (status === 'update_required') { title = 'App update required'; body = 'Update FastCalories to share live location.'; code = 'UPDATE_REQUIRED'; warn = true; }
   else if (status === 'problem' && problem) { ({ title, body } = GEO_HELP[problem]); code = GEO_DIAGNOSTIC_CODE[problem]; warn = true; }
@@ -29,6 +30,11 @@ export function RiderTrackingStatus({ status, problem, activeOrderCount, onRetry
           <p className="font-medium text-foreground">{title}</p>
           {(!long || showHelp) && <p className="text-xs text-muted-foreground">{body}</p>}
           {code && <p className="text-[10px] text-muted-foreground mt-0.5">Support code: {code}</p>}
+          {warn && diagnostics && (
+            <p data-testid="tracking-diagnostics" className="text-[10px] text-muted-foreground">
+              {`online=${diagnostics.online ? 'yes' : 'no'} · assigned=${diagnostics.assigned} · ${diagnostics.platform} · secure=${diagnostics.secure ? 'yes' : 'no'} · last=${diagnostics.lastCode ?? 'none'}`}
+            </p>
+          )}
         </div>
         {warn && status !== 'update_required' && (
           <Button size="sm" variant="outline" onClick={onRetry}><RefreshCw className="w-3 h-3 mr-1" />Retry</Button>
