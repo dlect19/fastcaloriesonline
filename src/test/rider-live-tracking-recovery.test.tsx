@@ -84,7 +84,8 @@ describe('FC-261006-6839 regression: assigned order with no location yet', () =>
     orderRows = [{ id: 'order-1', status: 'picked_up' }];
     getCurrent.mockImplementationOnce((_ok: any, err: any) => err({ code: 1 }));
     const { result } = renderHook(() => useRiderLiveTracking('rider-user'));
-    await waitFor(() => expect(result.current.status).toBe('permission_denied'));
+    await waitFor(() => expect(result.current.status).toBe('problem'));
+    expect(result.current.problem).toBe('permission_prompt');
     expect(rpc).not.toHaveBeenCalled();
     await act(async () => { result.current.retry(); });
     await waitFor(() => expect(rpc).toHaveBeenCalled());
@@ -109,7 +110,7 @@ describe('FC-261006-6839 regression: assigned order with no location yet', () =>
 
   it('rider banner offers Retry when permission is needed', () => {
     const onRetry = vi.fn();
-    render(<RiderTrackingStatus status="permission_denied" activeOrderCount={1} onRetry={onRetry} />);
+    render(<RiderTrackingStatus status="problem" problem="site_permission_denied" activeOrderCount={1} onRetry={onRetry} />);
     fireEvent.click(screen.getByRole('button', { name: /retry/i }));
     expect(onRetry).toHaveBeenCalled();
     const { container } = render(<RiderTrackingStatus status="tracking" activeOrderCount={0} onRetry={onRetry} />);
