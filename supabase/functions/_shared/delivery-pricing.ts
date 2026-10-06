@@ -14,6 +14,7 @@
 // A plain base-fee guess is NEVER used as a fallback.
 
 import { haversineDistance } from "./google-maps.ts";
+import { getRoadDistance } from "./road-distance.ts";
 import { getWeatherProvider } from "./weather-provider.ts";
 
 export const PROXIMITY_THRESHOLD_KM = 0.5;
@@ -139,32 +140,6 @@ function timePeriod(s: PricingSettings): "morning" | "afternoon" | "night" {
   return "morning";
 }
 
-/** Road distance from the configured provider. Never falls back to Haversine. */
-async function roadDistanceKm(
-  s: PricingSettings,
-  origin: { lat: number; lng: number },
-  dest: { lat: number; lng: number },
-): Promise<{ km: number; provider: string }> {
-  const key = Deno.env.get("GOOGLE_MAPS_KEY") || Deno.env.get("GOOGLE_MAPS_API_KEY");
-  if (!key) throw new Error("maps_key_missing");
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 6000);
-  try {
-    const url = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${origin.lat},${origin.lng}&destinations=${dest.lat},${dest.lng}&key=${key}`;
-    const res = await fetch(url, { signal: controller.signal });
-    if (!res.ok) throw new Error(`http_${res.status}`);
-    const d = await res.json();
-    const el = d?.rows?.[0]?.elements?.[0];
-    if (d.status !== "OK" || el?.status !== "OK") {
-      throw new Error(`status_${d.status}_${el?.status ?? "none"}`);
-    }
-    return { km: Math.round((el.distance.value / 1000) * 10) / 10, provider: "google_maps" };
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
 async function currentWeatherCondition(
   supabase: any,
   s: PricingSettings,
@@ -224,6 +199,8 @@ export interface QuoteInput {
   customerAddressId?: string | null;
   /** Skip the distance cache (used when validating an existing order). */
   skipCache?: boolean;
+  /** Edge function name, for usage attribution. */
+  callerFn?: string;
 }
 
 export async function quoteDeliveryFee(
@@ -245,40 +222,21 @@ export async function quoteDeliveryFee(
     source = "proximity";
   }
 
-  // Recent cached road distance (cost control) — still a trusted server value.
-  if (km === null && !input.skipCache) {
-    try {
-      const r = (n: number) => n.toFixed(3);
-      const coordKey = `${r(origin.lat)},${r(origin.lng)}|${r(dest.lat)},${r(dest.lng)}`;
-      let q = supabase
-        .from("delivery_distance_cache")
-        .select("distance_km, source")
-        .gt("expires_at", new Date().toISOString())
-        .limit(1);
-      q = input.vendorId && input.customerAddressId
-        ? q.eq("vendor_id", input.vendorId).eq("customer_address_id", input.customerAddressId)
-        : q.eq("coord_key", coordKey);
-      const { data: cached } = await q.maybeSingle();
-      // Only reuse cache rows that came from a real road-distance provider.
-      if (cached && cached.source && cached.source !== "haversine") {
-        km = Number(cached.distance_km);
-        source = "distance_cache";
-      }
-    } catch (_e) { /* cache is best-effort */ }
-  }
-
-  // Live road distance with retries.
+  // Road distance: cached (rounded coords + environment) or one live Google
+  // element under the daily cap, with one bounded retry on transient errors.
+  let capReached = false;
   if (km === null) {
-    for (let attempt = 0; attempt <= s.retryCount; attempt++) {
-      try {
-        const res = await roadDistanceKm(s, origin, dest);
-        km = res.km < PROXIMITY_THRESHOLD_KM ? 0 : res.km;
-        source = "google_distance";
-        break;
-      } catch (err) {
-        attempts.push(`${attempt + 1}:${(err as Error).message}`);
-        if (attempt < s.retryCount) await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
-      }
+    const res = await getRoadDistance(origin, dest, {
+      fn: input.callerFn || "delivery-pricing",
+      bypassCache: !!input.skipCache,
+      supabase,
+    });
+    if (res.ok) {
+      km = res.km < PROXIMITY_THRESHOLD_KM ? 0 : res.km;
+      source = res.source === "cache" ? "distance_cache" : "google_distance";
+    } else {
+      attempts.push(`${res.reason}${res.detail ? ":" + res.detail : ""}`);
+      capReached = res.reason === "cap_reached";
     }
   }
 
@@ -287,9 +245,10 @@ export async function quoteDeliveryFee(
     if (!s.fallbackEnabled || !(s.fallbackFee > 0)) {
       return {
         ok: false,
-        reason: "pricing_unavailable",
-        message:
-          "We couldn't work out the delivery price for this address right now. Please try again in a moment.",
+        reason: capReached ? "distance_cap_reached" : "pricing_unavailable",
+        message: capReached
+          ? "Delivery pricing is temporarily unavailable. Please try again later or choose carryout."
+          : "We couldn't work out the delivery price for this address right now. Please try again in a moment.",
         meta: { attempts, straight_line_km: Math.round(straight * 10) / 10 },
       };
     }

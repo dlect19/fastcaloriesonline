@@ -1,3 +1,4 @@
+import { getRoadDistance } from './road-distance.ts';
 // Map/distance provider abstraction — Phase 6.
 // The active provider is picked from `platform_settings.map_provider`
 // (defaults to google). New providers just implement DistanceProvider.
@@ -16,22 +17,13 @@ export interface DistanceProvider {
 }
 
 // --- Google Maps (default) ----------------------------------------------
+// Delegates to the single cached/capped/logged Distance Matrix path.
 const google: DistanceProvider = {
   name: 'google_maps',
   async distance(origin, dest) {
-    // Standard secret name is GOOGLE_MAPS_KEY; the legacy name is accepted too.
-    const key = Deno.env.get('GOOGLE_MAPS_KEY') || Deno.env.get('GOOGLE_MAPS_API_KEY');
-    if (!key) throw new Error('GOOGLE_MAPS_KEY missing');
-    const url = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${origin.lat},${origin.lng}&destinations=${dest.lat},${dest.lng}&key=${key}`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`google_maps http ${res.status}`);
-    const d = await res.json();
-    const el = d?.rows?.[0]?.elements?.[0];
-    if (!el || el.status !== 'OK') throw new Error(`google_maps status ${el?.status}`);
-    return {
-      distance_km: (el.distance?.value ?? 0) / 1000,
-      duration_min: (el.duration?.value ?? 0) / 60,
-    };
+    const r = await getRoadDistance(origin, dest, { fn: 'map-provider' });
+    if (!r.ok) throw new Error(`google_maps ${r.reason}`);
+    return { distance_km: r.km, duration_min: r.minutes ?? 0 };
   },
 };
 

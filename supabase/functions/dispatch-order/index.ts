@@ -558,7 +558,7 @@ Deno.serve(async (req) => {
 
     let deliveryDistanceKm = 0;
     let estimatedDeliveryMinutes = 0;
-    const gmResult = await getGoogleMapsDistance(pickupLat, pickupLng, customerLat, customerLon);
+    const gmResult = await getGoogleMapsDistance(pickupLat, pickupLng, customerLat, customerLon, 'dispatch-order');
     deliveryDistanceKm = gmResult.distanceKm;
     estimatedDeliveryMinutes = gmResult.durationMinutes;
     console.log(`Delivery distance (${gmResult.source}): ${deliveryDistanceKm} km, ETA: ${estimatedDeliveryMinutes} min`);
