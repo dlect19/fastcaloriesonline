@@ -60,6 +60,8 @@ export function useRiderLiveTracking(riderUserId: string | null | undefined) {
   const [attempt, setAttempt] = useState(0);
   const [problem, setProblem] = useState<GeoProblem | null>(null);
   const onFixRef = useRef<(f: Fix) => void>(() => {});
+  const trackingRef = useRef(false);
+  trackingRef.current = status === 'tracking';
   const lastSentRef = useRef<Fix | null>(null);
   const lastFixRef = useRef<Fix | null>(null);
   const forceRef = useRef(false);
@@ -152,8 +154,8 @@ export function useRiderLiveTracking(riderUserId: string | null | undefined) {
     const fail = (p: GeoProblem) => {
       if (stopped) return;
       // A transient timeout while already tracking is not shown as a failure.
-      setStatus((s) => (s === 'tracking' && p === 'timeout' ? s : 'problem'));
-      setProblem((cur) => (status === 'tracking' && p === 'timeout' ? cur : p));
+      if (trackingRef.current && p === 'timeout') return;
+      setStatus('problem'); setProblem(p);
     };
     const onWebError = async (code?: number) => fail(classifyWebError(code, await webPermState()));
     onFixRef.current = onFix;
