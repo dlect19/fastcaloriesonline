@@ -7551,6 +7551,56 @@ export type Database = {
           },
         ]
       }
+      rider_live_locations: {
+        Row: {
+          accuracy_m: number | null
+          captured_at: string
+          environment: string
+          heading: number | null
+          lat: number
+          lng: number
+          order_id: string
+          received_at: string
+          rider_user_id: string
+          session_started_at: string
+          speed_mps: number | null
+        }
+        Insert: {
+          accuracy_m?: number | null
+          captured_at: string
+          environment?: string
+          heading?: number | null
+          lat: number
+          lng: number
+          order_id: string
+          received_at?: string
+          rider_user_id: string
+          session_started_at?: string
+          speed_mps?: number | null
+        }
+        Update: {
+          accuracy_m?: number | null
+          captured_at?: string
+          environment?: string
+          heading?: number | null
+          lat?: number
+          lng?: number
+          order_id?: string
+          received_at?: string
+          rider_user_id?: string
+          session_started_at?: string
+          speed_mps?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rider_live_locations_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: true
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rider_payout_details: {
         Row: {
           created_at: string
@@ -7804,6 +7854,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      rider_tracking_daily_metrics: {
+        Row: {
+          accepted: number
+          day: string
+          environment: string
+          rejected_daily_cap: number
+          rejected_disabled: number
+          rejected_implausible: number
+          rejected_invalid: number
+          rejected_not_active: number
+          rejected_rate_limited: number
+          rejected_unauthorized: number
+          route_refreshes: number
+          sessions_started: number
+        }
+        Insert: {
+          accepted?: number
+          day: string
+          environment: string
+          rejected_daily_cap?: number
+          rejected_disabled?: number
+          rejected_implausible?: number
+          rejected_invalid?: number
+          rejected_not_active?: number
+          rejected_rate_limited?: number
+          rejected_unauthorized?: number
+          route_refreshes?: number
+          sessions_started?: number
+        }
+        Update: {
+          accepted?: number
+          day?: string
+          environment?: string
+          rejected_daily_cap?: number
+          rejected_disabled?: number
+          rejected_implausible?: number
+          rejected_invalid?: number
+          rejected_not_active?: number
+          rejected_rate_limited?: number
+          rejected_unauthorized?: number
+          route_refreshes?: number
+          sessions_started?: number
+        }
+        Relationships: []
       }
       rider_withdrawal_ledger: {
         Row: {
@@ -11271,6 +11366,7 @@ export type Database = {
         }
         Returns: Json
       }
+      admin_rider_tracking_status: { Args: never; Returns: Json }
       admin_set_branch_product_availability: {
         Args: { _available: boolean; _outlet_id: string; _product_id: string }
         Returns: Json
@@ -11418,6 +11514,7 @@ export type Database = {
       }
       checkout_customer_wallet: { Args: { p_payload: Json }; Returns: Json }
       claim_vendor_rider_invite: { Args: { p_code: string }; Returns: string }
+      cleanup_rider_live_locations: { Args: never; Returns: number }
       complete_voucher_delivery: {
         Args: { p_order_id: string; p_vendor_id: string; p_voucher_id: string }
         Returns: undefined
@@ -11874,6 +11971,18 @@ export type Database = {
         Args: { _outlet_id?: string; _product_id: string }
         Returns: boolean
       }
+      publish_rider_location: {
+        Args: {
+          p_accuracy?: number
+          p_captured_at?: string
+          p_heading?: number
+          p_lat: number
+          p_lng: number
+          p_order_id: string
+          p_speed?: number
+        }
+        Returns: Json
+      }
       purchase_event_tickets: {
         Args: {
           p_environment?: string
@@ -11993,6 +12102,14 @@ export type Database = {
       }
       rider_belongs_to_company: {
         Args: { _rider_user_id: string }
+        Returns: string
+      }
+      rider_tracking_bump: {
+        Args: { p_col: string; p_env: string }
+        Returns: undefined
+      }
+      rider_tracking_setting: {
+        Args: { p_default: string; p_key: string }
         Returns: string
       }
       schedule_open_at: {
