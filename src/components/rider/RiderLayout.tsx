@@ -141,6 +141,7 @@ export function RiderLayout({ children, isOnline, onToggleOnline, canViewEarning
     <div className="h-screen bg-background flex overflow-hidden">
       <RiderSidebar isOnline={isOnline} onToggleOnline={handleToggleOnline} canViewEarnings={canViewEarnings} />
       <main className="flex-1 p-8 overflow-y-auto">
+        <RiderTrackingStatus status={liveTracking.status} activeOrderCount={liveTracking.activeOrderCount} onRetry={liveTracking.retry} />
         {children}
       </main>
     </div>

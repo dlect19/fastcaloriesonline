@@ -18,7 +18,7 @@ export function RiderTrackingStatus({ status, activeOrderCount, onRetry }: { sta
   const warn = c.tone === 'warn';
   return (
     <div role="status" data-testid="rider-tracking-status"
-      className={`mx-4 mt-3 rounded-lg border px-3 py-2 text-sm flex items-center gap-3 ${warn ? 'border-warning bg-warning/10' : 'border-border bg-card'}`}>
+      className={`mb-3 rounded-lg border px-3 py-2 text-sm flex items-center gap-3 ${warn ? 'border-warning bg-warning/10' : 'border-border bg-card'}`}>
       {warn ? <MapPinOff className="w-4 h-4 text-warning shrink-0" /> : <MapPin className="w-4 h-4 text-primary shrink-0" />}
       <div className="flex-1 min-w-0">
         <p className="font-medium text-foreground">{c.title}</p>
