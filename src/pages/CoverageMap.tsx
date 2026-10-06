@@ -1,3 +1,4 @@
+/// <reference types="google.maps" />
 import { fetchBrowserMapsKey } from '@/lib/googleMapsBrowserKey';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -70,7 +71,7 @@ export default function CoverageMap() {
 
     const initMap = async () => {
       try {
-        if (!window.google?.maps) {
+        if (!(window as any).google?.maps) {
           let mapsKey: string;
           try { mapsKey = await fetchBrowserMapsKey(); }
           catch (e) { setError((e as Error).message || 'Map unavailable'); setMapLoading(false); return; }

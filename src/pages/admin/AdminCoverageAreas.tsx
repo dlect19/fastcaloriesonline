@@ -1,3 +1,4 @@
+/// <reference types="google.maps" />
 import { fetchBrowserMapsKey } from '@/lib/googleMapsBrowserKey';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
@@ -34,7 +35,7 @@ function loadGoogleMaps(apiKey: string): Promise<void> {
   if (googleMapsLoaded) return Promise.resolve();
   if (googleMapsPromise) return googleMapsPromise;
   googleMapsPromise = new Promise((resolve, reject) => {
-    if (window.google?.maps) { googleMapsLoaded = true; resolve(); return; }
+    if ((window as any).google?.maps) { googleMapsLoaded = true; resolve(); return; }
     const script = document.createElement('script');
     script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=drawing,places`;
     script.async = true;

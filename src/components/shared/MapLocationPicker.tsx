@@ -1,5 +1,5 @@
-import { fetchBrowserMapsKey } from '@/lib/googleMapsBrowserKey';
 /// <reference types="google.maps" />
+import { fetchBrowserMapsKey } from '@/lib/googleMapsBrowserKey';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Loader2, Search, MapPin } from 'lucide-react';
 
