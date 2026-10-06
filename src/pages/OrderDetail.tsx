@@ -281,6 +281,13 @@ export default function OrderDetail() {
       </header>
 
       <main className="container py-6 space-y-6">
+        {/* Live rider map — first major card while tracking is eligible */}
+        {order.delivery_type === 'delivery' && order.rider_id && ['assigned', 'picked_up', 'on_the_way'].includes(order.status) && (
+          <div data-testid="live-rider-map-slot">
+            <LiveRiderMap orderId={order.id} destLat={(order as any).delivery_latitude} destLng={(order as any).delivery_longitude} />
+          </div>
+        )}
+
         {/* Payment Pending Alert with Pay Now button */}
         {canPay && (
           <Alert className="border-warning bg-warning/10">
@@ -536,9 +543,6 @@ export default function OrderDetail() {
         {order.delivery_type !== 'self_pickup' && order.rider_id && !['pending', 'cancelled'].includes(order.status) && (
           <>
             <RiderInfoCard riderId={order.rider_id} />
-            {order.delivery_type === 'delivery' && ['assigned', 'picked_up', 'on_the_way'].includes(order.status) && (
-              <LiveRiderMap orderId={order.id} destLat={(order as any).delivery_latitude} destLng={(order as any).delivery_longitude} />
-            )}
             <Card>
               <CardHeader className="pb-2"><CardTitle className="text-base">Contact Rider</CardTitle></CardHeader>
               <CardContent>
