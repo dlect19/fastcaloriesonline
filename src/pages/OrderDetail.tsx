@@ -9,6 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { RiderReviewForm } from '@/components/order/RiderReviewForm';
 import { DisputeReportForm } from '@/components/order/DisputeReportForm';
 import { RiderInfoCard } from '@/components/order/RiderInfoCard';
+import { LiveRiderMap } from '@/components/order/LiveRiderMap';
 import { OrderChat } from '@/components/order/OrderChat';
 import { DeliveryTypeSwitcher } from '@/components/order/DeliveryTypeSwitcher';
 import { CustomerCancelOrderDialog } from '@/components/order/CustomerCancelOrderDialog';
@@ -535,6 +536,9 @@ export default function OrderDetail() {
         {order.delivery_type !== 'self_pickup' && order.rider_id && !['pending', 'cancelled'].includes(order.status) && (
           <>
             <RiderInfoCard riderId={order.rider_id} />
+            {order.delivery_type === 'delivery' && ['assigned', 'picked_up', 'on_the_way'].includes(order.status) && (
+              <LiveRiderMap orderId={order.id} destLat={(order as any).delivery_latitude} destLng={(order as any).delivery_longitude} />
+            )}
             <Card>
               <CardHeader className="pb-2"><CardTitle className="text-base">Contact Rider</CardTitle></CardHeader>
               <CardContent>

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { AdminRiderDistanceBreakdown } from '@/components/admin/AdminRiderDistanceBreakdown';
+import { RiderTrackingSettingsCard } from '@/components/admin/RiderTrackingSettingsCard';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -400,7 +401,8 @@ export default function AdminRiders() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="distance">
+          <TabsContent value="distance" className="space-y-6">
+            <RiderTrackingSettingsCard />
             <AdminRiderDistanceBreakdown />
           </TabsContent>
         </Tabs>
