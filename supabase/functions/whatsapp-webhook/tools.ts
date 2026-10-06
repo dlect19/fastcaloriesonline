@@ -1,4 +1,6 @@
-import { logGoogleUsage, platformEnvironment } from "../_shared/google-usage.ts";
+// Loaded lazily so this module stays importable in unit tests (no network imports).
+const GOOGLE_USAGE_MODULE = "../_shared/google-usage.ts";
+function loadGoogleUsage(): Promise<any> { return import(GOOGLE_USAGE_MODULE); }
 // Env read via globalThis so this module also typechecks outside Deno.
 const envGet = (k: string): string | undefined =>
   (globalThis as any).Deno?.env?.get(k);
@@ -247,11 +249,11 @@ async function geocodeText(query: string) {
       { headers: { Authorization: `Bearer ${lk}`, "X-Connection-Api-Key": gk } },
     );
     const j = await r.json();
-    platformEnvironment().then((environment) => logGoogleUsage({
+    loadGoogleUsage().then(({ platformEnvironment, logGoogleUsage }) => platformEnvironment().then((environment) => logGoogleUsage({
       provider: "google_maps", endpoint: "geocoding", api: "geocoding", function_name: "whatsapp-webhook:tools",
       environment, outcome: j?.status === "OK" ? "success" : "failed", status_code: r.status,
       billable_elements: 1, cache_status: "none", meta: { via: "connector_gateway" },
-    })).catch(() => {});
+    }))).catch(() => {});
     const hit = j?.results?.[0];
     if (!hit?.geometry?.location) return null;
     return {

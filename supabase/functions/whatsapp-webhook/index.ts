@@ -1,4 +1,6 @@
-import { logGoogleUsage, platformEnvironment } from "../_shared/google-usage.ts";
+// Loaded lazily so this module stays importable in unit tests (no network imports).
+const GOOGLE_USAGE_MODULE = "../_shared/google-usage.ts";
+function loadGoogleUsage(): Promise<any> { return import(GOOGLE_USAGE_MODULE); }
 // WhatsApp webhook (Twilio) — fully tap-driven, in-WhatsApp account creation.
 // Public endpoint (no JWT). Twilio signature is verified in production.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -2533,11 +2535,11 @@ async function persistSession(supabase: any, id: string, state: string, context:
 // capture must never block ordering.
 const GMAPS_GATEWAY = "https://connector-gateway.lovable.dev/google_maps";
 function logWaGeocode(api: string, status: number, providerStatus: unknown) {
-  platformEnvironment().then((environment) => logGoogleUsage({
+  loadGoogleUsage().then(({ platformEnvironment, logGoogleUsage }) => platformEnvironment().then((environment) => logGoogleUsage({
     provider: "google_maps", endpoint: api, api, function_name: "whatsapp-webhook", environment,
     outcome: providerStatus === "OK" ? "success" : "failed", status_code: status,
     billable_elements: 1, cache_status: "none", meta: { via: "connector_gateway" },
-  })).catch(() => {});
+  }))).catch(() => {});
 }
 async function reverseGeocode(lat: number, lon: number): Promise<string | null> {
   const lk = Deno.env.get("LOVABLE_API_KEY");
