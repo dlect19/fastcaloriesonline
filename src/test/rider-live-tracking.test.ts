@@ -46,7 +46,7 @@ describe('adaptive throttling and jitter', () => {
     expect(shouldPublish(fix(0, 10), fix(100, 5), T0 + 20000, C)).toBe(false);
   });
   it('poor, invalid or stale readings are ignored', () => {
-    expect(isUsableFix(fix(0, 0, { accuracy: 500 }), T0)).toBe(false);
+    expect(isUsableFix(fix(0, 0, { accuracy: 1500 }), T0)).toBe(false);
     expect(isUsableFix({ lat: 95, lng: 0, capturedAt: T0 }, T0)).toBe(false);
     expect(isUsableFix(fix(0, 0), T0 + 120_000)).toBe(false);
     expect(isUsableFix(fix(0, 0), T0 + 1000)).toBe(true);
@@ -71,9 +71,9 @@ describe('offline coalescing', () => {
 });
 
 describe('customer UI state and marker motion', () => {
-  it('connecting → unavailable without data; live → stale by age', () => {
+  it('connecting → waiting without data; live → stale by age', () => {
     expect(liveState(null, T0, C, 10_000)).toBe('connecting');
-    expect(liveState(null, T0, C, 70_000)).toBe('unavailable');
+    expect(liveState(null, T0, C, 25_000)).toBe('waiting');
     expect(liveState(new Date(T0 - 30_000).toISOString(), T0, C, 0)).toBe('live');
     expect(liveState(new Date(T0 - 120_000).toISOString(), T0, C, 0)).toBe('stale');
     expect(lastUpdatedLabel(new Date(T0 - 125_000).toISOString(), T0)).toBe('2 min ago');
