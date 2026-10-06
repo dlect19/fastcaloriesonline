@@ -66,6 +66,7 @@ export async function validateOrderPricing(
   const quote = await quoteDeliveryFee(supabase, {
     originLat, originLng, destLat: lat, destLng: lng,
     vendorId: order.vendor_id, customerAddressId: order.delivery_address_id,
+    callerFn: "checkout-price-validation",
   }, settings);
 
   if (!quote.ok) {
