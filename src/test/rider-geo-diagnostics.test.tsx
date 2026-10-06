@@ -6,10 +6,10 @@ import { classifyWebError, classifyNativeError, webPreflight, GEO_DIAGNOSTIC_COD
 const rpc = vi.fn();
 let orderRows: { id: string; status: string }[] = [];
 let native = false;
-const nativeGeo = {
+const nativeGeo = vi.hoisted(() => ({
   checkPermissions: vi.fn(), requestPermissions: vi.fn(), getCurrentPosition: vi.fn(),
   watchPosition: vi.fn(async () => 'w1'), clearWatch: vi.fn(async () => {}),
-};
+}));
 
 vi.mock('@/integrations/supabase/client', () => {
   const q: any = { select: () => q, eq: () => q, in: () => q, limit: () => Promise.resolve({ data: orderRows }) };
