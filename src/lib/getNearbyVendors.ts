@@ -56,7 +56,7 @@ const isRetryableError = (error: any) => {
 
 export async function invokeGetNearbyVendors(
   body: GetNearbyVendorsRequest,
-  retries = 2,
+  retries = 1,
 ): Promise<InvokeResult> {
   const requestKey = buildRequestKey(body);
   const existingRequest = inFlightRequests.get(requestKey);
