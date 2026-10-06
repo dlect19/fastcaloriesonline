@@ -53,7 +53,7 @@ async function nativePermission(): Promise<GeoProblem | null> {
 const FIX_TIMEOUT_MS = 15_000;
 
 export interface TrackingDiagnostics {
-  online: boolean; assigned: number; platform: 'native' | 'browser'; secure: boolean; lastCode: string | null;
+  online: boolean; assigned: number; platform: 'native' | 'browser'; secure: boolean; lastCode: string | null; stage: AcquisitionStage;
 }
 
 /** Runs one fix ladder step-by-step; stops on the first fix or a permission denial. */
