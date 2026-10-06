@@ -204,7 +204,7 @@ describe('online/assignment gating and recovery', () => {
 
   it('diagnostics line has no coordinates', () => {
     render(<RiderTrackingStatus status="problem" problem="position_unavailable" activeOrderCount={1} onRetry={() => {}}
-      diagnostics={{ online: true, assigned: 1, platform: 'browser', secure: true, lastCode: 'position_unavailable' }} />);
+      diagnostics={{ online: true, assigned: 1, platform: 'browser', secure: true, lastCode: 'position_unavailable', stage: 'failed' }} />);
     const t = screen.getByTestId('tracking-diagnostics').textContent || '';
     expect(t).toMatch(/online=yes · assigned=1 · browser · secure=yes · last=position_unavailable/);
     expect(t).not.toMatch(/\d+\.\d{3,}/);
