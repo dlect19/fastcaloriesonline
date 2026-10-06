@@ -12,6 +12,7 @@ import { useEnsureLocationPermissions } from '@/hooks/useEnsureLocationPermissio
 import { useDispatchOffers } from '@/hooks/useDispatchOffers';
 import { useFreshActionable } from '@/hooks/useFreshActionable';
 import { RiderNotificationWarning } from './RiderNotificationWarning';
+import { RiderTrackingStatus } from './RiderTrackingStatus';
 
 
 interface RiderLayoutProps {
@@ -41,7 +42,7 @@ export function RiderLayout({ children, isOnline, onToggleOnline, canViewEarning
   useRiderLocation({ riderId: riderId || undefined, enabled: isOnline && !!riderId });
 
   // Live location for the customer, only while assigned to an active delivery.
-  useRiderLiveTracking(riderId);
+  const liveTracking = useRiderLiveTracking(riderId);
 
   // Gate the "go online" action behind the Prominent Disclosure + permission flow.
   const handleToggleOnline = useCallback(
@@ -128,6 +129,7 @@ export function RiderLayout({ children, isOnline, onToggleOnline, canViewEarning
         <RiderMobileHeader isOnline={isOnline} onToggleOnline={handleToggleOnline} />
         <main className="flex-1 p-4 pb-36">
           <RiderNotificationWarning userId={riderId} />
+          <RiderTrackingStatus status={liveTracking.status} activeOrderCount={liveTracking.activeOrderCount} onRetry={liveTracking.retry} />
           {children}
         </main>
         <RiderBottomNav isOnline={isOnline} onToggleOnline={handleToggleOnline} canViewEarnings={canViewEarnings} />
