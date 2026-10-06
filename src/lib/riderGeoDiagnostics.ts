@@ -61,7 +61,7 @@ export const GEO_HELP: Record<GeoProblem, { title: string; body: string }> = {
   timeout: { title: 'Still looking for GPS signal', body: 'Move near a window or outdoors, keep the app open, then tap Retry.' },
   position_unavailable: {
     title: "Phone can't find your position",
-    body: 'Permission is fine, but Android returned no location. On Android: Settings → Location → Location services → Google Location Accuracy ON; Wi-Fi scanning and Bluetooth scanning ON. Settings → Apps → Chrome (or FastCalories) → Permissions → Location → Allow while using app, with Precise location ON. Turn off Battery saver / Data saver for the app. Move near a window or outdoors, then tap Retry.',
+    body: 'Permission is fine, but Android returned no location. On Android: Settings → Location → Location services → Google Location Accuracy ON; Wi-Fi scanning and Bluetooth scanning ON. Settings → Apps → Chrome (or FastCalories) → Permissions → Location → Allow while using app, with Precise location ON. Turn off Battery saver / Data saver for the app. Move near a window or outdoors, then tap Retry. Note: Google Maps working does not prove Chrome lets this site use location. Reset it: Chrome ⋮ → Settings → Site settings → All sites → app.fastcalories.online → Clear & reset, reopen the app, tap Retry and choose Allow.',
   },
   insecure_context: { title: 'Open the secure app', body: 'Location only works on https://app.fastcalories.online. Open that address and try again.' },
   unsupported: { title: 'Browser not supported', body: 'This browser cannot share location. Open the app in Chrome, or update it.' },
