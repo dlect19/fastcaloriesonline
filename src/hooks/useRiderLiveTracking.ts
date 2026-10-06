@@ -14,11 +14,14 @@ import { Geolocation } from '@capacitor/geolocation';
 import { supabase } from '@/integrations/supabase/client';
 import { useTrackingConfig } from '@/hooks/useTrackingConfig';
 import {
+  classifyNativeError, classifyWebError, webPreflight, type GeoProblem, type WebPermState,
+} from '@/lib/riderGeoDiagnostics';
+import {
   ACTIVE_TRACKING_STATUSES, isMoving, isUsableFix, LatestOnlyBuffer, shouldPublish, type Fix,
 } from '@/lib/riderTracking';
 
 export type RiderTrackingStatus =
-  | 'idle' | 'starting' | 'tracking' | 'permission_denied' | 'gps_unavailable' | 'update_required' | 'disabled';
+  | 'idle' | 'starting' | 'tracking' | 'problem' | 'update_required' | 'disabled';
 
 export const ORDER_POLL_MS = 30_000;
 
@@ -28,18 +31,26 @@ export function isMissingRpcError(err: { code?: string; message?: string } | nul
   return err.code === 'PGRST202' || err.code === '42883' || /could not find the function/i.test(err.message || '');
 }
 
-async function ensurePermission(native: boolean): Promise<'granted' | 'denied' | 'unavailable'> {
+async function webPermState(): Promise<WebPermState> {
   try {
-    if (native) {
-      let p = await Geolocation.checkPermissions();
-      if (p.location !== 'granted' && p.coarseLocation !== 'granted') p = await Geolocation.requestPermissions();
-      return p.location === 'granted' || p.coarseLocation === 'granted' ? 'granted' : 'denied';
-    }
-    if (!('geolocation' in navigator)) return 'unavailable';
-    const q = await (navigator as any).permissions?.query?.({ name: 'geolocation' }).catch(() => null);
-    return q?.state === 'denied' ? 'denied' : 'granted'; // 'prompt' is asked by the first fix request
-  } catch { return 'unavailable'; }
+    const q = await (navigator as any).permissions?.query?.({ name: 'geolocation' });
+    return (q?.state as WebPermState) || 'unknown';
+  } catch { return 'unknown'; }
 }
+
+/** Native: Capacitor permission APIs only (never browser permission logic). */
+async function nativePermission(): Promise<GeoProblem | null> {
+  try {
+    let p = await Geolocation.checkPermissions();
+    const ok = () => p.location === 'granted' || p.coarseLocation === 'granted';
+    if (!ok()) p = await Geolocation.requestPermissions({ permissions: ['location', 'coarseLocation'] } as any);
+    return ok() ? null : 'app_permission_denied';
+  } catch (e: any) {
+    return classifyNativeError(e?.message);
+  }
+}
+
+const FIX_TIMEOUT_MS = 15_000;
 
 export function useRiderLiveTracking(riderUserId: string | null | undefined) {
   const cfg = useTrackingConfig();
@@ -47,6 +58,10 @@ export function useRiderLiveTracking(riderUserId: string | null | undefined) {
   const [orders, setOrders] = useState<{ id: string; status: string }[]>([]);
   const [highAccuracy, setHighAccuracy] = useState(true);
   const [attempt, setAttempt] = useState(0);
+  const [problem, setProblem] = useState<GeoProblem | null>(null);
+  const onFixRef = useRef<(f: Fix) => void>(() => {});
+  const trackingRef = useRef(false);
+  trackingRef.current = status === 'tracking';
   const lastSentRef = useRef<Fix | null>(null);
   const lastFixRef = useRef<Fix | null>(null);
   const forceRef = useRef(false);
@@ -91,7 +106,7 @@ export function useRiderLiveTracking(riderUserId: string | null | undefined) {
 
   useEffect(() => {
     if (!cfg.enabled) setStatus('disabled');
-    else if (!active) setStatus('idle');
+    else if (!active) { setStatus('idle'); setProblem(null); }
   }, [active, cfg.enabled]);
 
   useEffect(() => {
@@ -117,7 +132,7 @@ export function useRiderLiveTracking(riderUserId: string | null | undefined) {
         }
         const r = data as { ok: boolean; stop?: boolean } | null;
         if (r?.stop) setOrders((cur) => cur.filter((x) => x.id !== o.id));
-        else if (r?.ok) setStatus('tracking');
+        else if (r?.ok) { setProblem(null); setStatus('tracking'); }
       }
     };
 
@@ -136,11 +151,14 @@ export function useRiderLiveTracking(riderUserId: string | null | undefined) {
       if (shouldPublish(lastSentRef.current, fix, now, cfg, { force: forceRef.current, moving })) void send(fix);
     };
 
-    const onError = (code?: number) => {
+    const fail = (p: GeoProblem) => {
       if (stopped) return;
-      if (code === 1) setStatus('permission_denied');
-      else setStatus((s) => (s === 'tracking' ? s : 'gps_unavailable'));
+      // A transient timeout while already tracking is not shown as a failure.
+      if (trackingRef.current && p === 'timeout') return;
+      setStatus('problem'); setProblem(p);
     };
+    const onWebError = async (code?: number) => fail(classifyWebError(code, await webPermState()));
+    onFixRef.current = onFix;
 
     const toFix = (p: any): Fix => ({
       lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy,
@@ -153,26 +171,45 @@ export function useRiderLiveTracking(riderUserId: string | null | undefined) {
       ? Geolocation.getCurrentPosition(o).then(toFix)
       : new Promise<Fix>((res, rej) => navigator.geolocation.getCurrentPosition((p) => res(toFix(p)), rej, o));
 
-    (async () => {
-      const perm = await ensurePermission(native);
-      if (stopped) return;
-      if (perm === 'denied') { setStatus('permission_denied'); return; }
-      if (perm === 'unavailable') { setStatus('gps_unavailable'); return; }
-      // Immediate first publish — don't wait for the 12/45 s cadence.
+    // First fix: bounded high-accuracy attempt, then ONE lower-accuracy /
+    // recent-cached attempt on timeout. No loops.
+    const firstFix = async (): Promise<boolean> => {
       forceRef.current = true;
-      getOnce({ enableHighAccuracy: true, maximumAge: 15_000, timeout: 15_000 })
-        .then(onFix).catch((e: any) => onError(e?.code === 1 || /denied/i.test(String(e?.message)) ? 1 : 2));
+      try { onFix(await getOnce({ enableHighAccuracy: true, maximumAge: 15_000, timeout: FIX_TIMEOUT_MS })); return true; }
+      catch (e: any) {
+        const timedOut = native ? classifyNativeError(e?.message) === 'timeout' : e?.code === 3;
+        if (timedOut) {
+          try { onFix(await getOnce({ enableHighAccuracy: false, maximumAge: 60_000, timeout: FIX_TIMEOUT_MS })); return true; }
+          catch (e2: any) { e = e2; }
+        }
+        if (native) fail(classifyNativeError(e?.message)); else await onWebError(e?.code);
+        return false;
+      }
+    };
+
+    (async () => {
+      if (native) {
+        const p = await nativePermission();
+        if (stopped) return;
+        if (p) { fail(p); return; }
+      } else {
+        const pre = webPreflight({ secure: window.isSecureContext !== false, hasGeo: 'geolocation' in navigator });
+        if (pre) { fail(pre); return; }
+        // A previously blocked site can only be fixed by the rider + a Retry tap.
+        if ((await webPermState()) === 'denied') { if (!stopped) fail('site_permission_denied'); return; }
+      }
+      if (stopped || !(await firstFix()) || stopped) return;
       try {
         if (native) {
           const id = await Geolocation.watchPosition(opts, (pos, err) => {
-            if (err) { onError(String(err?.message || '').toLowerCase().includes('denied') ? 1 : 2); return; }
+            if (err) { fail(classifyNativeError(err?.message)); return; }
             if (pos) onFix(toFix(pos));
           });
           if (stopped) Geolocation.clearWatch({ id }); else watchId = id;
         } else {
-          watchId = navigator.geolocation.watchPosition((p) => onFix(toFix(p)), (e) => onError(e.code), opts);
+          watchId = navigator.geolocation.watchPosition((p) => onFix(toFix(p)), (e) => { void onWebError(e.code); }, opts);
         }
-      } catch { onError(2); }
+      } catch (e: any) { fail(native ? classifyNativeError(e?.message) : 'position_unavailable'); }
     })();
 
     // Stationary heartbeat: one fresh fix per stationary interval, so the
@@ -200,12 +237,33 @@ export function useRiderLiveTracking(riderUserId: string | null | undefined) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, highAccuracy, attempt, cfg.stationaryIntervalS, cfg.movingIntervalS, cfg.minServerIntervalS]);
 
-  /** Rider-initiated retry: re-check orders, re-ask permission, publish a fresh fix. */
+  /**
+   * Rider-initiated retry. Must be called from the tap handler: on web the
+   * geolocation request is made synchronously inside the user gesture, so
+   * Chrome can show its prompt; on success the watcher is restarted.
+   */
   const retry = useCallback(() => {
     lastSentRef.current = null;
+    forceRef.current = true;
     loadRef.current();
-    setAttempt((n) => n + 1);
+    setStatus('starting');
+    if (!Capacitor.isNativePlatform() && 'geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (p) => {
+          onFixRef.current({
+            lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy,
+            speed: p.coords.speed, heading: p.coords.heading, capturedAt: Math.min(Date.now(), p.timestamp || Date.now()),
+          });
+          setProblem(null);
+          setAttempt((n) => n + 1); // restart watchPosition
+        },
+        async (e) => { setProblem(classifyWebError(e.code, await webPermState())); setStatus('problem'); },
+        { enableHighAccuracy: true, maximumAge: 30_000, timeout: FIX_TIMEOUT_MS },
+      );
+      return;
+    }
+    setAttempt((n) => n + 1); // native: effect re-runs check/requestPermissions
   }, []);
 
-  return { status, activeOrderCount: orders.length, retry };
+  return { status, problem, activeOrderCount: orders.length, retry };
 }
