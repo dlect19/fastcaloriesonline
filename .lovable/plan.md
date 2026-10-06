@@ -1,20 +1,29 @@
-# Server map key verification (read-only)
+# Weather provider audit (read-only)
 
-No edits, deployments, key changes or Google calls were made.
+Nothing was edited, deployed, or sent to a weather service.
 
-| Check | Result |
-|---|---|
-| 1. GOOGLE_MAPS_KEY saved | PASS: the name exists. Values are hidden, so it can only be confirmed non-empty by a working backend lookup. |
-| 2. GOOGLE_MAPS_BROWSER_KEY still saved | PASS: the name exists, and earlier today the key endpoint returned a non-empty key. |
-| 3. Backend lookups use the server key | PASS: road distance, address search, place details and reverse address lookup read GOOGLE_MAPS_KEY in live mode. None of them read the browser key. |
-| 4. Key endpoint only returns the browser key | PASS: it reads GOOGLE_MAPS_BROWSER_KEY only, so it cannot return GOOGLE_MAPS_KEY. |
-| 5. No publish needed | PASS: the app itself never contains the server key. Backend functions read secrets each time they start, so the new key takes effect within minutes with no redeploy. |
+## Provider
+- **Primary (live): Open-Meteo**, `api.open-meteo.com` (`/v1/forecast?...&current_weather=true`). It's free and needs no key. The platform setting `weather_service_provider` = `open-meteo`.
+- **Optional alternative: OpenWeather**, `api.openweathermap.org`. It needs `OPENWEATHER_API_KEY`. That secret isn't set and the setting doesn't select it, so it's unused.
+- There's no automatic fallback between providers. If a call fails, the app uses the last saved weather reading or treats it as "clear".
 
-Note: the WhatsApp location helper reads GOOGLE_MAPS_API_KEY first and falls back to GOOGLE_MAPS_KEY. GOOGLE_MAPS_API_KEY is not saved in this project, so WhatsApp also uses the new key.
+## Where weather is fetched
+| Path | File | Trigger | Cache |
+|---|---|---|---|
+| Rider dispatch | `dispatch-order/index.ts` `fetchWeatherCondition` | Each dispatch round (Search Rider) | None: calls Open-Meteo directly every round, bypassing the shared provider and cache |
+| Delivery fee | `_shared/delivery-pricing.ts` | Quotes and checkout | Reads saved weather only (`weather_cache`), no outbound call |
+| Customer cart | `get-current-weather/index.ts` | When the cart needs weather | 15-minute cache per ~10 km grid; live call on a miss |
+| Admin refresh | `refresh-weather/index.ts` | Only the admin "Refresh now" button (`force: true`) | Writes the cache; loops up to 200 vendors, deduplicated by grid |
 
-## Safest way to retire the old key
-1. Wait about 24 hours. In Google Cloud, go to APIs and Services > Credentials, open the old key, and check its usage metrics. It should show no requests.
-2. If it's still getting requests, check where they come from before you change anything. The old key may still be used by the mobile app or another project.
-3. Don't delete the old key yet. Change its API restrictions to an unused API so it stops working right away, but can be switched back if something breaks.
-4. Watch real usage for one day: the vendor delivery quote, checkout fee, and address search. The admin Google usage panel should show successful lookups.
-5. After that, delete the old key and keep the budget alert and daily Distance Matrix limit in place.
+## Schedule and usage
+- No scheduled weather job exists. The 5-minute frequency setting is configured but no job runs it.
+- Saved weather: 2 grid rows from Open-Meteo, last updated 2026-09-11. The cart path seems rarely or never called, since the cache would otherwise be newer.
+- The usage log has **0 weather rows**. Only the admin refresh records usage. The dispatch and cart paths aren't logged, so call counts can't be measured.
+
+## Google charges
+- No weather path calls Google Maps Weather, Gemini, or any other Google API. Weather **can't contribute to the Google Cloud bill**, and Open-Meteo is free.
+
+## Notes
+- The dispatch path duplicates the provider code and calls Open-Meteo on every round, with no cache, logging, or timeout. It isn't a retry loop, but it ignores the admin's provider choice and the saved weather.
+- The delivery fee uses saved weather, which is about 4 weeks old, while dispatch uses live weather. Surge amounts can differ between the fee shown at checkout and the rider dispatch.
+- Possible fix later (needs approval): make dispatch read the same cached weather, and log every weather call.
