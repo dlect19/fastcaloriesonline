@@ -8,7 +8,8 @@ export type GeoProblem =
   | 'timeout'                 // no fix within the bounded timeout
   | 'position_unavailable'    // browser could not obtain a fix
   | 'insecure_context'        // page not served over HTTPS
-  | 'unsupported';            // no geolocation API
+  | 'unsupported'             // no geolocation API
+  | 'app_update_required';    // installed app shell has no native bridge for this page
 
 export const GEO_DIAGNOSTIC_CODE: Record<GeoProblem, string> = {
   device_location_off: 'LOC_SERVICE_OFF',
@@ -19,6 +20,7 @@ export const GEO_DIAGNOSTIC_CODE: Record<GeoProblem, string> = {
   position_unavailable: 'POSITION_UNAVAILABLE',
   insecure_context: 'INSECURE_CONTEXT',
   unsupported: 'GEO_UNSUPPORTED',
+  app_update_required: 'NATIVE_SHELL_OUTDATED',
 };
 
 export type WebPermState = 'granted' | 'denied' | 'prompt' | 'unknown';
@@ -41,8 +43,15 @@ export function classifyWebError(code: number | undefined, perm: WebPermState): 
   return 'position_unavailable';
 }
 
-/** Capacitor Geolocation error/permission → problem. */
-export function classifyNativeError(message: string | undefined): GeoProblem {
+/** Capacitor Geolocation error (OS-PLUG-GLOC-xxxx code or message) → problem. */
+export function classifyNativeError(message: string | undefined, code?: string): GeoProblem {
+  const c = String(code || message || '').match(/OS-PLUG-GLOC-(\d{4})/)?.[1];
+  if (c) {
+    if (c === '0003' || c === '0008') return 'app_permission_denied';
+    if (c === '0007' || c === '0009' || c === '0017') return 'device_location_off';
+    if (c === '0010') return 'timeout';
+    return 'position_unavailable';
+  }
   const m = String(message || '').toLowerCase();
   if (/services? (are )?not enabled|location (is )?disabled|location services/.test(m)) return 'device_location_off';
   if (/denied|permission/.test(m)) return 'app_permission_denied';
@@ -65,6 +74,10 @@ export const GEO_HELP: Record<GeoProblem, { title: string; body: string }> = {
   },
   insecure_context: { title: 'Open the secure app', body: 'Location only works on https://app.fastcalories.online. Open that address and try again.' },
   unsupported: { title: 'Browser not supported', body: 'This browser cannot share location. Open the app in Chrome, or update it.' },
+  app_update_required: {
+    title: 'App update required',
+    body: 'This installed FastCalories app cannot reach the phone\'s location service. Update the app from the Play Store / App Store (or install the latest version), reopen it, then tap Retry.',
+  },
 };
 
 /**
@@ -78,4 +91,4 @@ export const FIRST_FIX_LADDER: PositionOptions[] = [
 ];
 
 /** Problems that need the rider to change a setting/tap, not auto-recovery. */
-export const NEEDS_RIDER_ACTION: GeoProblem[] = ['site_permission_denied', 'app_permission_denied', 'permission_prompt', 'insecure_context', 'unsupported'];
+export const NEEDS_RIDER_ACTION: GeoProblem[] = ['site_permission_denied', 'app_permission_denied', 'permission_prompt', 'insecure_context', 'unsupported', 'app_update_required'];
