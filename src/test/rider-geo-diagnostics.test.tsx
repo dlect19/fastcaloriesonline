@@ -57,7 +57,7 @@ describe('classification is truthful (not everything is "GPS unavailable")', () 
     expect(webPreflight({ secure: true, hasGeo: false })).toBe('unsupported');
     expect(classifyNativeError('Location services are not enabled')).toBe('device_location_off');
     expect(classifyNativeError('User denied location permission')).toBe('app_permission_denied');
-    expect(new Set(Object.values(GEO_DIAGNOSTIC_CODE)).size).toBe(8);
+    expect(new Set(Object.values(GEO_DIAGNOSTIC_CODE)).size).toBe(9);
   });
 });
 
@@ -92,11 +92,14 @@ describe('web/PWA flows', () => {
 });
 
 describe('native path uses Capacitor permission APIs, not browser logic', () => {
-  it('requests permission and reports app_permission_denied', async () => {
+  it('prompt is not auto-requested; Retry asks the OS and reports app_permission_denied', async () => {
     native = true;
     nativeGeo.checkPermissions.mockResolvedValue({ location: 'prompt', coarseLocation: 'prompt' });
     nativeGeo.requestPermissions.mockResolvedValue({ location: 'denied', coarseLocation: 'denied' });
     const { result } = renderHook(() => useRiderLiveTracking('r'));
+    await waitFor(() => expect(result.current.problem).toBe('permission_prompt'));
+    expect(nativeGeo.requestPermissions).not.toHaveBeenCalled();
+    act(() => { result.current.retry(); });
     await waitFor(() => expect(result.current.problem).toBe('app_permission_denied'));
     expect(nativeGeo.requestPermissions).toHaveBeenCalled();
     expect(getCurrent).not.toHaveBeenCalled();
@@ -173,7 +176,7 @@ describe('online/assignment gating and recovery', () => {
     render(<RiderTrackingStatus status="problem" problem="position_unavailable" activeOrderCount={1} onRetry={() => {}}
       diagnostics={{ online: true, assigned: 1, platform: 'browser', secure: true, lastCode: 'position_unavailable', stage: 'failed' }} />);
     const t = screen.getByTestId('tracking-diagnostics').textContent || '';
-    expect(t).toMatch(/online=yes · assigned=1 · browser · secure=yes · last=position_unavailable/);
+    expect(t).toMatch(/online=yes · assigned=1 · platform=browser · secure=yes · last=position_unavailable/);
     expect(t).not.toMatch(/\d+\.\d{3,}/);
     expect(screen.getByText(/POSITION_UNAVAILABLE/)).toBeTruthy();
   });
