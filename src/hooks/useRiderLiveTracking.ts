@@ -282,7 +282,7 @@ export function useRiderLiveTracking(riderUserId: string | null | undefined, opt
         if (!ok && !stopped) {
           const p = hardErr ? await errProblem(hardErr) : lastErr ? await errProblem(lastErr) : 'position_unavailable';
           setStage('failed');
-          fail(p === 'permission_prompt' || p === 'site_permission_denied' || p === 'app_permission_denied' || p === 'device_location_off' || p === 'app_update_required' || p === 'timeout' ? p : 'position_unavailable');
+          fail(p);
         }
       };
       const onErr = (e: any) => { if (isHardStop(e)) void done(false, e); else lastErr = e; };
