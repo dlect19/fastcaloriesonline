@@ -3,3 +3,4 @@
 - Weather for pricing, dispatch, cart and admin refresh goes only through _shared/weather-service.ts (cached, logged); only weather-provider.ts may call a weather API — keeps quote, checkout and rider surge consistent.
 - Live rider location is written only via the publish_rider_location RPC (server-derived rider/order link, validated, rate-limited) into latest-only rider_live_locations; customers read via RLS/realtime and map calls never run per GPS point.
 - Spin platform eligibility uses Capacitor native/platform detection shared by the UI and spin invocation guard; never use user-agent matching, so compiled iOS restrictions cannot be bypassed by another UI caller.
+- Rider geolocation routing comes only from src/lib/nativeRuntime.ts (Capacitor bridge + Geolocation plugin probe); native contexts use @capacitor/geolocation exclusively and navigator.geolocation is web-only, so a Capacitor WebView on an https origin is never misrouted.
