@@ -28,7 +28,7 @@ vi.mock('@capacitor/geolocation', () => ({ Geolocation: nativeGeo }));
 
 import { detectRuntime, canUseNativeGeolocation, isUnimplementedError } from '@/lib/nativeRuntime';
 import { classifyNativeError } from '@/lib/riderGeoDiagnostics';
-import { useRiderLiveTracking } from '@/hooks/useRiderLiveTracking';
+import { useRiderLiveTracking, ACQUISITION_TIMING } from '@/hooks/useRiderLiveTracking';
 import { RiderTrackingStatus } from '@/components/rider/RiderTrackingStatus';
 
 const pos = () => ({ coords: { latitude: 6.5, longitude: 3.4, accuracy: 25, speed: null, heading: null }, timestamp: Date.now() });
@@ -131,10 +131,14 @@ describe('native Android tracking uses @capacitor/geolocation only', () => {
     cap.native = false;
     Object.defineProperty(navigator, 'userAgent', { configurable: true, value: 'Mozilla/5.0 (Linux; Android 14; wv) AppleWebKit Chrome/120 Mobile' });
     webGet.mockImplementation((_ok: any, err: any) => err({ code: 2 }));
+    const T = { ...ACQUISITION_TIMING };
+    Object.assign(ACQUISITION_TIMING, { cachedTimeoutMs: 10, balancedWatchMs: 30, highWatchMs: 30 });
     const { result } = renderHook(() => useRiderLiveTracking('r'));
     await waitFor(() => expect(result.current.problem).toBe('app_update_required'), { timeout: 4000 });
-    expect(result.current.diagnostics.lastCode).toBeTruthy();
-  }, 70_000);
+    expect(result.current.diagnostics.lastCode).toBe('position_unavailable');
+    expect(result.current.diagnostics.bridge).toBe(false);
+    Object.assign(ACQUISITION_TIMING, T);
+  });
   it('diagnostics never include coordinates', () => {
     const src = readFileSync('src/lib/nativeRuntime.ts', 'utf8');
     expect(src).not.toMatch(/latitude|longitude|console\./);
