@@ -4,6 +4,17 @@ import { Button } from '@/components/ui/button';
 import type { RiderTrackingStatus as S, TrackingDiagnostics } from '@/hooks/useRiderLiveTracking';
 import { GEO_DIAGNOSTIC_CODE, GEO_HELP, type GeoProblem } from '@/lib/riderGeoDiagnostics';
 
+const yn = (b?: boolean) => (b ? 'yes' : 'no');
+/** Non-sensitive support line: runtime, permission and stage only — never coordinates. */
+export function formatDiagnostics(d: TrackingDiagnostics): string {
+  const parts = [`online=${yn(d.online)}`, `assigned=${d.assigned}`, `platform=${d.platform}`];
+  if (d.bridge !== undefined) parts.push(`bridge=${yn(d.bridge)}`);
+  if (d.geoPlugin !== undefined) parts.push(`geolocation_plugin=${yn(d.geoPlugin)}`);
+  if (d.perm) parts.push(`perm=${d.perm}`);
+  parts.push(`secure=${yn(d.secure)}`, `last=${d.lastCode ?? 'none'}`, `stage=${d.stage ?? 'none'}`);
+  return parts.join(' · ');
+}
+
 /**
  * Shown only while the rider has an active delivery. Foreground-only tracking.
  * Location problems are independent of notification permission.
@@ -17,7 +28,11 @@ export function RiderTrackingStatus({ status, problem, activeOrderCount, onRetry
   if (status === 'paused_offline') { title = 'Live tracking paused — go Online'; body = 'Your location is shared with the customer only while you are Online with an active delivery.'; }
   else if (status === 'starting') { title = 'Starting live location…'; body = "Sharing your location with this delivery's customer only."; }
   else if (status === 'tracking') { title = 'Live location active'; body = 'Your customer can see you on the map until delivery.'; }
-  else if (status === 'update_required') { title = 'App update required'; body = 'Update FastCalories to share live location.'; code = 'UPDATE_REQUIRED'; warn = true; }
+  else if (status === 'update_required') {
+    title = 'App update required';
+    body = 'This version of the FastCalories app cannot share live location. Install the latest app update, reopen it, and keep the rider screen open.';
+    code = diagnostics?.lastCode === 'native_plugin_missing' ? 'NATIVE_GEO_PLUGIN_MISSING' : 'UPDATE_REQUIRED'; warn = true;
+  }
   else if (status === 'problem' && problem) { ({ title, body } = GEO_HELP[problem]); code = GEO_DIAGNOSTIC_CODE[problem]; warn = true; }
   else return null;
   const long = body.length > 90;
@@ -32,7 +47,7 @@ export function RiderTrackingStatus({ status, problem, activeOrderCount, onRetry
           {code && <p className="text-[10px] text-muted-foreground mt-0.5">Support code: {code}</p>}
           {warn && diagnostics && (
             <p data-testid="tracking-diagnostics" className="text-[10px] text-muted-foreground">
-              {`online=${diagnostics.online ? 'yes' : 'no'} · assigned=${diagnostics.assigned} · ${diagnostics.platform} · secure=${diagnostics.secure ? 'yes' : 'no'} · last=${diagnostics.lastCode ?? 'none'} · stage=${diagnostics.stage ?? 'none'}`}
+              {formatDiagnostics(diagnostics)}
             </p>
           )}
         </div>

@@ -7,9 +7,12 @@
  * Start-up: active orders are loaded immediately and on every realtime change
  * to this rider's orders (bounded fallback poll), permission is confirmed, and
  * one fresh fix is published at once instead of waiting for the cadence.
+ *
+ * Routing: a context with the Capacitor bridge and Geolocation plugin uses
+ * @capacitor/geolocation exclusively (permissions, one-shot, watch, clearWatch);
+ * navigator.geolocation is the web-only fallback. See src/lib/nativeRuntime.ts.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Capacitor } from '@capacitor/core';
 import { Geolocation } from '@capacitor/geolocation';
 import { supabase } from '@/integrations/supabase/client';
 import { useTrackingConfig } from '@/hooks/useTrackingConfig';
@@ -19,6 +22,7 @@ import {
 import {
   ACTIVE_TRACKING_STATUSES, isMoving, isUsableFix, LatestOnlyBuffer, shouldPublish, type Fix,
 } from '@/lib/riderTracking';
+import { canUseNativeGeolocation, detectRuntime, isUnimplementedError, type RuntimePlatform } from '@/lib/nativeRuntime';
 
 export type RiderTrackingStatus =
   | 'idle' | 'paused_offline' | 'starting' | 'tracking' | 'problem' | 'update_required' | 'disabled';
@@ -38,29 +42,35 @@ async function webPermState(): Promise<WebPermState> {
   } catch { return 'unknown'; }
 }
 
-/** Native: Capacitor permission APIs only (never browser permission logic). */
-async function nativePermission(): Promise<GeoProblem | null> {
+/**
+ * Native: Capacitor permission APIs only (never browser permission logic).
+ * The OS prompt is requested only when `request` is set (a rider action).
+ */
+export async function nativePermission(request: boolean): Promise<{ problem: GeoProblem | null; label: string }> {
   try {
     let p = await Geolocation.checkPermissions();
     const ok = () => p.location === 'granted' || p.coarseLocation === 'granted';
-    if (!ok()) p = await Geolocation.requestPermissions({ permissions: ['location', 'coarseLocation'] } as any);
-    return ok() ? null : 'app_permission_denied';
+    if (!ok() && request) p = await Geolocation.requestPermissions({ permissions: ['location', 'coarseLocation'] });
+    const label = `fine:${p.location}/coarse:${p.coarseLocation}`;
+    if (ok()) return { problem: null, label };
+    const denied = p.location === 'denied' || p.coarseLocation === 'denied';
+    return { problem: denied ? 'app_permission_denied' : 'permission_prompt', label };
   } catch (e: any) {
-    return classifyNativeError(e?.message);
+    return { problem: isUnimplementedError(e) ? 'app_update_required' : classifyNativeError(e?.message, e?.code), label: 'error' };
   }
 }
 
-const FIX_TIMEOUT_MS = 15_000;
-
 /**
- * Web acquisition budget (total ≤ ~55 s): cached one-shot → balanced warm-up
+ * Acquisition budget (total ≤ ~55 s): cached one-shot → balanced warm-up
  * watch → high-accuracy warm-up watch. Mutable only so tests can shorten it.
  */
 export const ACQUISITION_TIMING = { cachedTimeoutMs: 5_000, balancedWatchMs: 30_000, highWatchMs: 20_000, resumeCooldownMs: 20_000, retryDebounceMs: 3_000 };
 export type AcquisitionStage = 'cached' | 'balanced_watch' | 'high_accuracy' | 'failed' | null;
 
 export interface TrackingDiagnostics {
-  online: boolean; assigned: number; platform: 'native' | 'browser'; secure: boolean; lastCode: string | null; stage: AcquisitionStage;
+  online: boolean; assigned: number; platform: RuntimePlatform | 'native' | 'browser';
+  bridge?: boolean; geoPlugin?: boolean; perm?: string;
+  secure: boolean; lastCode: string | null; stage: AcquisitionStage;
 }
 
 /** Runs one fix ladder step-by-step; stops on the first fix or a permission denial. */
@@ -80,10 +90,16 @@ export function useRiderLiveTracking(riderUserId: string | null | undefined, opt
   const online = opts.online ?? true;
   const onlineRef = useRef(online);
   onlineRef.current = online;
+  // Detected once per mount from the Capacitor bridge, never from URL/UA.
+  const [runtime] = useState(() => detectRuntime());
+  const native = canUseNativeGeolocation(runtime);
+  const pluginMissing = runtime.bridge && !runtime.geolocationPlugin;
   const [lastCode, setLastCode] = useState<string | null>(null);
   const [stage, setStage] = useState<AcquisitionStage>(null);
+  const [permLabel, setPermLabel] = useState<string>('unknown');
   const lastResumeRef = useRef(0);
   const lastRetryRef = useRef(0);
+  const requestPermRef = useRef(false);
   const cfg = useTrackingConfig();
   const [status, setStatus] = useState<RiderTrackingStatus>('idle');
   const [orders, setOrders] = useState<{ id: string; status: string }[]>([]);
@@ -147,9 +163,12 @@ export function useRiderLiveTracking(riderUserId: string | null | undefined, opt
 
   useEffect(() => {
     if (!active) return;
+    // Native shell without the Geolocation plugin: never fall back to browser
+    // geolocation inside the app — the installed app must be updated.
+    if (pluginMissing) { setStatus('update_required'); setLastCode('native_plugin_missing'); return; }
     let stopped = false;
-    let watchId: string | number | null = null;
-    const native = Capacitor.isNativePlatform();
+    type Stop = () => void;
+    let stopMain: Stop | null = null;
     setStatus((s) => (s === 'tracking' ? s : 'starting'));
 
     const send = async (fix: Fix) => {
@@ -187,14 +206,17 @@ export function useRiderLiveTracking(riderUserId: string | null | undefined, opt
       if (shouldPublish(lastSentRef.current, fix, now, cfg, { force: forceRef.current, moving })) void send(fix);
     };
 
-    const fail = (p: GeoProblem) => {
+    const fail = (raw: GeoProblem) => {
       if (stopped) return;
       // A transient timeout while already tracking is not shown as a failure.
-      if (trackingRef.current && p === 'timeout') return;
-      setLastCode(p);
+      if (trackingRef.current && raw === 'timeout') return;
+      setLastCode(raw);
+      if (native && raw === 'app_update_required') { setStatus('update_required'); return; }
+      // An app WebView without the native bridge: browser instructions would be
+      // wrong — the installed app itself needs updating.
+      const p = runtime.shellWithoutBridge && raw !== 'insecure_context' ? 'app_update_required' : raw;
       setStatus('problem'); setProblem(p);
     };
-    const onWebError = async (code?: number) => fail(classifyWebError(code, await webPermState()));
     onFixRef.current = onFix;
 
     const toFix = (p: any): Fix => ({
@@ -204,98 +226,122 @@ export function useRiderLiveTracking(riderUserId: string | null | undefined, opt
       capturedAt: Math.min(Date.now(), p.timestamp || Date.now()),
     });
     const opts = { enableHighAccuracy: highAccuracy, maximumAge: 5000, timeout: 20000 };
+
+    // ---- Location source: native plugin or web fallback, never both. ----
     const getOnce = (o: PositionOptions): Promise<Fix> => native
       ? Geolocation.getCurrentPosition(o).then(toFix)
       : new Promise<Fix>((res, rej) => navigator.geolocation.getCurrentPosition((p) => res(toFix(p)), rej, o));
-
-    // First fix: cached → balanced (network/Wi-Fi) → high-accuracy GPS.
-    // High accuracy is never required for the first fix. Bounded, no loops.
-    const isDenied = (e: any) => native ? classifyNativeError(e?.message) === 'app_permission_denied' : e?.code === 1;
-    const firstFix = async (): Promise<boolean> => {
-      forceRef.current = true;
-      try { onFix(await runFixLadder(getOnce, isDenied)); return true; }
-      catch (e: any) {
-        if (native) fail(classifyNativeError(e?.message)); else await onWebError(e?.code);
-        return false;
+    const startWatch = (o: PositionOptions, onPos: (p: any) => void, onErr: (e: any) => void): Stop => {
+      if (native) {
+        let id: string | null = null;
+        let cancelled = false;
+        Geolocation.watchPosition(o, (pos, err) => {
+          if (cancelled) return;
+          if (err) onErr(err); else if (pos) onPos(pos);
+        }).then((wid) => {
+          if (cancelled) Geolocation.clearWatch({ id: wid }).catch(() => {}); else id = wid;
+        }).catch((e) => { if (!cancelled) onErr(e); });
+        return () => {
+          cancelled = true;
+          if (id !== null) Geolocation.clearWatch({ id }).catch(() => {});
+          id = null;
+        };
       }
+      const id = navigator.geolocation.watchPosition(onPos, onErr, o);
+      return () => navigator.geolocation.clearWatch(id);
     };
+    const errProblem = async (e: any): Promise<GeoProblem> => native
+      ? (isUnimplementedError(e) ? 'app_update_required' : classifyNativeError(e?.message, e?.code))
+      : classifyWebError(e?.code, await webPermState());
+    /** Errors the rider must fix (permission/location off/plugin missing): stop at once. */
+    const isHardStop = (e: any) => native
+      ? isUnimplementedError(e) || ['app_permission_denied', 'device_location_off'].includes(classifyNativeError(e?.message, e?.code))
+      : e?.code === 1;
+
     // Watch errors after a recent good fix are transient; don't flash a banner.
     const recentFix = () => !!lastFixRef.current && Date.now() - lastFixRef.current.capturedAt < 120_000;
 
-    // Bounded web acquisition: exactly one warm-up watcher at a time, all timers
-    // cleared on success, failure or cleanup.
-    let warmId: number | null = null;
+    // Bounded acquisition: exactly one warm-up watcher at a time, all timers
+    // cleared on success, failure or cleanup. A one-shot POSITION_UNAVAILABLE
+    // never ends tracking — a watch often delivers the first fix.
+    let stopWarm: Stop | null = null;
     let warmTimer: ReturnType<typeof setTimeout> | null = null;
     const clearWarm = () => {
-      if (warmId !== null) navigator.geolocation.clearWatch(warmId);
+      if (stopWarm) stopWarm();
       if (warmTimer) clearTimeout(warmTimer);
-      warmId = null; warmTimer = null;
+      stopWarm = null; warmTimer = null;
     };
-    const acquireWeb = () => new Promise<boolean>((resolve) => {
+    const acquire = () => new Promise<boolean>((resolve) => {
       forceRef.current = true;
-      let lastErr = 2;
+      let lastErr: any = null;
       let settled = false;
-      const done = (ok: boolean, problem?: GeoProblem) => {
+      const done = async (ok: boolean, hardErr?: any) => {
         if (settled) return; settled = true;
         clearWarm();
-        if (!ok && problem && !stopped) { setStage('failed'); fail(problem); }
         resolve(ok && !stopped);
+        if (!ok && !stopped) {
+          const p = hardErr ? await errProblem(hardErr) : lastErr ? await errProblem(lastErr) : 'position_unavailable';
+          setStage('failed');
+          fail(p);
+        }
       };
+      const onErr = (e: any) => { if (isHardStop(e)) void done(false, e); else lastErr = e; };
       const warm = (hi: boolean, ms: number, next: () => void) => {
-        if (stopped) return done(false);
+        if (stopped || settled) return void done(false);
         clearWarm();
         setStage(hi ? 'high_accuracy' : 'balanced_watch');
-        warmId = navigator.geolocation.watchPosition(
+        stopWarm = startWatch(
+          { enableHighAccuracy: hi, maximumAge: hi ? 0 : 30_000, timeout: ms },
           (p) => {
             const f = toFix(p);
-            if (!isUsableFix(f, Date.now())) return;
-            clearWarm(); onFix(f); done(true);
+            if (settled || !isUsableFix(f, Date.now())) return;
+            clearWarm(); onFix(f); void done(true);
           },
-          (e) => { if (e.code === 1) { void webPermState().then((st) => done(false, classifyWebError(1, st))); } else lastErr = e.code; },
-          { enableHighAccuracy: hi, maximumAge: hi ? 0 : 30_000, timeout: ms },
+          onErr,
         );
         warmTimer = setTimeout(() => { clearWarm(); next(); }, ms);
       };
-      const high = () => warm(true, ACQUISITION_TIMING.highWatchMs, () => done(false, lastErr === 3 ? 'timeout' : 'position_unavailable'));
+      const high = () => warm(true, ACQUISITION_TIMING.highWatchMs, () => void done(false));
       setStage('cached');
-      navigator.geolocation.getCurrentPosition(
-        (p) => { const f = toFix(p); if (isUsableFix(f, Date.now())) { onFix(f); done(true); } else warm(false, ACQUISITION_TIMING.balancedWatchMs, high); },
-        (e) => {
-          if (e.code === 1) { void webPermState().then((st) => done(false, classifyWebError(1, st))); return; }
-          lastErr = e.code;
+      getOnce({ enableHighAccuracy: false, maximumAge: 120_000, timeout: ACQUISITION_TIMING.cachedTimeoutMs })
+        .then((f) => {
+          if (settled) return;
+          if (isUsableFix(f, Date.now())) { onFix(f); void done(true); }
+          else warm(false, ACQUISITION_TIMING.balancedWatchMs, high);
+        })
+        .catch((e) => {
+          if (settled) return;
+          if (isHardStop(e)) { void done(false, e); return; }
+          lastErr = e;
           warm(false, ACQUISITION_TIMING.balancedWatchMs, high);
-        },
-        { enableHighAccuracy: false, maximumAge: 120_000, timeout: ACQUISITION_TIMING.cachedTimeoutMs },
-      );
+        });
     });
 
     (async () => {
       if (native) {
-        const p = await nativePermission();
+        const request = requestPermRef.current;
+        requestPermRef.current = false;
+        const r = await nativePermission(request);
         if (stopped) return;
-        if (p) { fail(p); return; }
+        setPermLabel(r.label);
+        if (r.problem) { fail(r.problem); return; }
       } else {
         const pre = webPreflight({ secure: window.isSecureContext !== false, hasGeo: 'geolocation' in navigator });
         if (pre) { fail(pre); return; }
+        const st = await webPermState();
+        if (stopped) return;
+        setPermLabel(st);
         // A previously blocked site can only be fixed by the rider + a Retry tap.
-        if ((await webPermState()) === 'denied') { if (!stopped) fail('site_permission_denied'); return; }
+        if (st === 'denied') { fail('site_permission_denied'); return; }
       }
       if (stopped) return;
-      // Web: a one-shot POSITION_UNAVAILABLE must not end tracking — Chrome often
-      // only delivers a fix to an ongoing watch. Native keeps the plugin ladder.
-      const acquired = native ? await firstFix() : await acquireWeb();
+      const acquired = await acquire();
       if (!acquired || stopped) return;
       try {
-        if (native) {
-          const id = await Geolocation.watchPosition(opts, (pos, err) => {
-            if (err) { if (!recentFix()) fail(classifyNativeError(err?.message)); return; }
-            if (pos) onFix(toFix(pos));
-          });
-          if (stopped) Geolocation.clearWatch({ id }); else watchId = id;
-        } else {
-          watchId = navigator.geolocation.watchPosition((p) => onFix(toFix(p)), (e) => { if (e.code === 1 || !recentFix()) void onWebError(e.code); }, opts);
-        }
-      } catch (e: any) { fail(native ? classifyNativeError(e?.message) : 'position_unavailable'); }
+        stopMain = startWatch(opts, (p) => onFix(toFix(p)), (e) => {
+          if (isHardStop(e) || !recentFix()) void errProblem(e).then(fail);
+        });
+      } catch (e: any) { fail(await errProblem(e)); }
     })();
 
     // Stationary heartbeat: one fresh fix per stationary interval, so the
@@ -326,15 +372,13 @@ export function useRiderLiveTracking(riderUserId: string | null | undefined, opt
 
     return () => {
       stopped = true;
-      if (!native) clearWarm();
+      clearWarm();
+      if (stopMain) stopMain();
+      stopMain = null;
       clearInterval(heartbeat);
       window.removeEventListener('online', onOnline);
       window.removeEventListener('focus', resume);
       document.removeEventListener('visibilitychange', resume);
-      if (watchId !== null) {
-        if (native) Geolocation.clearWatch({ id: String(watchId) }).catch(() => {});
-        else navigator.geolocation.clearWatch(watchId as number);
-      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, highAccuracy, attempt, cfg.stationaryIntervalS, cfg.movingIntervalS, cfg.minServerIntervalS]);
@@ -342,7 +386,8 @@ export function useRiderLiveTracking(riderUserId: string | null | undefined, opt
   /**
    * Rider-initiated retry. Must be called from the tap handler: on web the
    * geolocation request is made synchronously inside the user gesture, so
-   * Chrome can show its prompt; on success the watcher is restarted.
+   * Chrome can show its prompt; on native the next attempt asks the OS for
+   * permission via the Capacitor plugin. The watcher is then restarted.
    */
   const retry = useCallback(() => {
     // Only while Online with an eligible delivery.
@@ -355,7 +400,9 @@ export function useRiderLiveTracking(riderUserId: string | null | undefined, opt
     loadRef.current();
     setProblem(null); setLastCode(null);
     setStatus('starting');
-    if (!Capacitor.isNativePlatform() && 'geolocation' in navigator) {
+    if (native) {
+      requestPermRef.current = true; // OS prompt from this rider action
+    } else if ('geolocation' in navigator) {
       // Issued synchronously inside the tap so Chrome can show its prompt and
       // re-check site permission. One-shot only — never creates a watcher.
       navigator.geolocation.getCurrentPosition(
@@ -369,11 +416,11 @@ export function useRiderLiveTracking(riderUserId: string | null | undefined, opt
     }
     // Restart acquisition: effect cleanup clears any existing watcher/timers first.
     setAttempt((n) => n + 1);
-  }, []);
+  }, [native]);
 
   const diagnostics: TrackingDiagnostics = {
     online, assigned: orders.length,
-    platform: Capacitor.isNativePlatform() ? 'native' : 'browser',
+    platform: runtime.platform, bridge: runtime.bridge, geoPlugin: runtime.geolocationPlugin, perm: permLabel,
     secure: typeof window === 'undefined' ? true : window.isSecureContext !== false,
     lastCode, stage,
   };
