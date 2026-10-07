@@ -58,7 +58,7 @@ export function detectRuntime(
 }
 
 /** Native routing is allowed only with a bridge and the geolocation plugin. */
-export function useNativeGeolocation(r: RuntimeInfo): boolean {
+export function canUseNativeGeolocation(r: RuntimeInfo): boolean {
   return r.bridge && r.platform !== 'web' && r.geolocationPlugin;
 }
 
