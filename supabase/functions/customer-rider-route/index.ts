@@ -5,7 +5,7 @@ import { guardGoogleProxy, logGoogleUsage, serviceClient } from "../_shared/goog
 import { resolveDailyCap, selectServerMapsKey } from "../_shared/google-usage-core.ts";
 import {
   computeRoutesBody, parseComputeRoutes, ROUTE_ACTIVE_STATUSES, ROUTE_CACHE_TTL_MS,
-  ROUTE_MAX_LOCATION_AGE_MS, routeCacheKey, ROUTES_FIELD_MASK,
+  ROUTE_MAX_LOCATION_AGE_MS, routeCacheKey, isUnsupportedTwoWheeler, ROUTES_FIELD_MASK,
 } from "../_shared/rider-route-core.ts";
 
 const corsHeaders = {
@@ -84,6 +84,10 @@ Deno.serve(async (req) => {
           const latency = Date.now() - t0;
           if (!res.ok) {
             const text = await res.text();
+            if (mode === "TWO_WHEELER" && isUnsupportedTwoWheeler(res.status, text)) {
+              logGoogleUsage({ ...base, outcome: "failed", status_code: res.status, billable_elements: 0, latency_ms: latency, cache_status: "miss", meta: { reason: "two_wheeler_unsupported", mode } }, svc);
+              continue; // single DRIVE attempt
+            }
             let reason = "provider_error";
             if (res.status === 403) {
               try {

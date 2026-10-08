@@ -39,3 +39,19 @@ export function parseComputeRoutes(body: any): ParsedRoute {
   }
   return { ok: true, distance_m: dist, duration_s: dur, polyline };
 }
+
+/**
+ * True only when Google explicitly rejects TWO_WHEELER travel mode for this request/region.
+ * Permission, key, billing, quota and network failures never qualify (no DRIVE retry for those).
+ */
+export function isUnsupportedTwoWheeler(status: number, text: string): boolean {
+  if (status !== 400) return false;
+  let msg = text;
+  try {
+    const e = JSON.parse(text)?.error;
+    if (e?.status && e.status !== "INVALID_ARGUMENT") return false;
+    msg = String(e?.message ?? text);
+  } catch { /* plain text body */ }
+  if (/billing|quota|api key|permission|referer|disabled/i.test(msg)) return false;
+  return /TWO_WHEELER|two.?wheeler|travel ?mode/i.test(msg) && /not supported|unsupported|not available|isn't supported/i.test(msg);
+}
