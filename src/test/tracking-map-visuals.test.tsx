@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor, act } from '@testing-library/react';
 import { readFileSync } from 'node:fs';
-import { decodePolyline, distanceToPathM, etaLabel, mapPoint, routeBackoffMs, shouldFitTrackingMap, shouldRefreshRoute, trackingDistanceLabel, trackingMarkerSvg } from '@/lib/trackingMapVisuals';
+import { bearingDeg, chooseRiderHeading, newerLocation, projectOntoPath, quantizeHeading, remainingRoute, resubscribeDelayMs, shouldPoll, ROUTE_MOVE_M, decodePolyline, distanceToPathM, etaLabel, mapPoint, routeBackoffMs, shouldFitTrackingMap, shouldRefreshRoute, trackingDistanceLabel, trackingMarkerSvg } from '@/lib/trackingMapVisuals';
 import { isUnsupportedTwoWheeler, parseComputeRoutes, routeCacheKey, computeRoutesBody } from '../../supabase/functions/_shared/rider-route-core';
 
 const mocks = vi.hoisted(() => ({ row: null as Record<string, unknown> | null, change: null as ((p: any) => void) | null, remove: vi.fn(), eq: vi.fn(), invoke: vi.fn() }));
@@ -25,8 +25,10 @@ describe('local tracking map artwork and geometry', () => {
   it('renders distinct motorcycle and house SVG artwork, never a red pin', () => {
     const rider = decodeURIComponent(trackingMarkerSvg('rider', 'green', 'white').split(',')[1]);
     const home = decodeURIComponent(trackingMarkerSvg('delivery', 'orange', 'white').split(',')[1]);
-    expect(rider).toContain('cx="20" cy="41" r="7"');
-    expect(rider).toContain('cx="48" cy="41" r="7"');
+    expect(rider).toContain('data-part="helmet"');
+    expect(rider).toContain('data-part="front-tyre"');
+    expect(rider).toContain('data-part="halo"');
+    expect(rider).not.toMatch(/<circle cx="34" cy="32" r="29"/); // no longer a tiny motorcycle-in-pin
     expect(home).toContain('15-13');
     expect(rider).not.toEqual(home);
     expect(rider).toContain('stroke="white"');
@@ -58,7 +60,7 @@ describe('local tracking map artwork and geometry', () => {
   it('draws only returned road geometry: no direct line, no browser routing APIs', () => {
     const src = readFileSync('src/components/order/LiveRiderMap.tsx', 'utf8');
     expect(src).toContain('new google.maps.Polyline');
-    expect(src).toContain('setPath(route.path)');
+    expect(src).toContain("setPath(remaining.path)");
     expect(src).not.toContain('setPath([p, destination])');
     expect(src).not.toMatch(/geodesic|direct distance|\(direct\)/i);
     expect(src).not.toMatch(/DirectionsService|DistanceMatrix|Geocoder|fetch\(/);
@@ -164,5 +166,63 @@ describe('customer tracking map states without live Maps requests', () => {
     render(<LiveRiderMap orderId="test-order" destLat={6} destLng={3} />);
     await waitFor(() => expect(screen.getByText('Rider location not updated recently')).toBeInTheDocument());
     expect(mocks.invoke).not.toHaveBeenCalled();
+  });
+});
+
+describe('feed recovery, heading and remaining-route helpers', () => {
+  it('orients by valid heading when moving, by real movement otherwise, and keeps heading at rest', () => {
+    const a = { lat: 6, lng: 3 };
+    expect(chooseRiderHeading({ previous: null, prevPoint: null, next: a, gpsHeading: 90, speedMps: 5 })).toBe(90);
+    expect(chooseRiderHeading({ previous: 45, prevPoint: a, next: { lat: 6.00002, lng: 3 }, gpsHeading: 270, speedMps: 0.2 })).toBe(45); // jitter at rest
+    expect(Math.round(chooseRiderHeading({ previous: 45, prevPoint: a, next: { lat: 6.001, lng: 3 }, speedMps: 0 })!)).toBe(0);
+    expect(Math.round(bearingDeg(a, { lat: 6, lng: 3.001 }))).toBe(90);
+    expect(quantizeHeading(357)).toBe(0);
+    expect(decodeURIComponent(trackingMarkerSvg('rider', 'g', 'w', 92))).toContain('rotate(90 32 32)');
+  });
+  it('trims travelled geometry only when the fix projects reliably onto the road path', () => {
+    const route = { path: [{ lat: 6, lng: 3 }, { lat: 6.01, lng: 3 }], distanceM: 1100, durationS: 300 };
+    const mid = remainingRoute(route, { lat: 6.005, lng: 3.00005 }, 8);
+    expect(mid.estimated).toBe(true);
+    expect(mid.path[0].lng).toBe(3); // starts on the road, no off-road connector
+    expect(mid.distanceM).toBeGreaterThan(500); expect(mid.distanceM).toBeLessThan(600);
+    const far = remainingRoute(route, { lat: 6.005, lng: 3.003 }, 8); // ~330 m off road
+    expect(far).toMatchObject({ estimated: false, distanceM: 1100, path: route.path });
+    expect(projectOntoPath({ lat: 6.005, lng: 3 }, route.path)!.offRouteM).toBeLessThan(1);
+  });
+  it('never lets an older row overwrite a newer one', () => {
+    const old = { received_at: '2026-10-08T15:00:00Z', v: 1 }, nu = { received_at: '2026-10-08T15:00:10Z', v: 2 };
+    expect(newerLocation(nu, old)).toBe(nu);
+    expect(newerLocation(old, nu)).toBe(nu);
+    expect(newerLocation(null, old)).toBe(old);
+  });
+  it('bounds resubscribes and polls only when disconnected or stale', () => {
+    expect([1, 2, 3, 6, 8].map(resubscribeDelayMs)).toEqual([2000, 4000, 8000, 60000, 60000]);
+    expect(resubscribeDelayMs(9)).toBeNull();
+    const now = Date.parse('2026-10-08T15:01:00Z');
+    expect(shouldPoll({ channelUp: false, lastReceivedAt: null, now, movingIntervalS: 12, polls: 0 })).toBe(true);
+    expect(shouldPoll({ channelUp: true, lastReceivedAt: '2026-10-08T15:00:50Z', now, movingIntervalS: 12, polls: 0 })).toBe(false);
+    expect(shouldPoll({ channelUp: true, lastReceivedAt: '2026-10-08T15:00:00Z', now, movingIntervalS: 12, polls: 0 })).toBe(true);
+    expect(shouldPoll({ channelUp: false, lastReceivedAt: null, now, movingIntervalS: 12, polls: 80 })).toBe(false);
+  });
+  it('refreshes the route at ~45 m movement and the server returns the true route origin', () => {
+    expect(ROUTE_MOVE_M).toBe(45);
+    const path = [{ lat: 6, lng: 3 }, { lat: 6.01, lng: 3 }];
+    expect(shouldRefreshRoute({ rider: { lat: 6.00045, lng: 3 }, routeOrigin: path[0], path, lastRequestAt: 0, now: 100_000, routeAt: 99_000 })).toBe(true);
+    const src = readFileSync('supabase/functions/customer-rider-route/index.ts', 'utf8');
+    expect(src).toContain('origin_received_at: loc.received_at, origin_lat: origin.lat');
+    expect(src).toContain('{ ...hit.value, latest_received_at: loc.received_at, cached: true }');
+  });
+  it('initial fetch cannot overwrite a newer realtime fix', async () => {
+    let resolve!: (v: unknown) => void;
+    const slow = new Promise((r) => { resolve = r; });
+    mocks.row = null;
+    render(<LiveRiderMap orderId="race-order" />);
+    const fresh = new Date().toISOString();
+    await act(async () => { mocks.change?.({ eventType: 'UPDATE', new: { lat: 6, lng: 3, received_at: fresh } }); });
+    void slow; resolve(null);
+    await waitFor(() => expect(screen.getByText('Last updated just now')).toBeInTheDocument());
+    const src = readFileSync('src/components/order/LiveRiderMap.tsx', 'utf8');
+    expect(src).toContain('offerPoint(data as unknown as LivePoint)');
+    expect(src).not.toMatch(/setPointState\(data/);
   });
 });
