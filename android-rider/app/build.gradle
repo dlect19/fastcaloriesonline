@@ -1,0 +1,64 @@
+apply plugin: 'com.android.application'
+
+android {
+    // FastCalories Rider target. Java namespace stays shared; applicationId is the store identity.
+    namespace "com.customers.fastcalories.app"
+    compileSdk 36
+
+    defaultConfig {
+        applicationId "com.rider.fastcalories.app"
+        minSdk 24
+        targetSdk 35
+        versionCode 100
+        versionName "2.0.0"
+    }
+
+    signingConfigs {
+        release {
+            if (System.getenv('RIDER_KEYSTORE_PATH')) {
+                storeFile file(System.getenv('RIDER_KEYSTORE_PATH'))
+                storePassword System.getenv('RIDER_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('RIDER_KEY_ALIAS')
+                keyPassword System.getenv('RIDER_KEY_PASSWORD')
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+repositories {
+    flatDir {
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'src/main/libs'
+    }
+}
+
+dependencies {
+    implementation project(':capacitor-android')
+    implementation "androidx.appcompat:appcompat:1.7.0"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:1.2.0"
+    implementation "androidx.core:core-splashscreen:1.0.1"
+    implementation "com.google.firebase:firebase-messaging:24.1.0"
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch (Exception e) {
+    logger.info("google-services.json not found, Google services plugin not applied")
+}

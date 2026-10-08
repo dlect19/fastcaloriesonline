@@ -12,7 +12,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "cap:sync": "npm run build && npx cap sync",
-    "cap:sync:android": "npm run build && npx cap sync android",
+    "cap:sync:android": "npm run build && npx cap sync android && node scripts/verify-app-target.mjs customer native",
     "cap:sync:ios": "npm run build && npx cap sync ios",
     "cap:open:android": "npx cap open android",
     "cap:open:ios": "npx cap open ios",
@@ -24,7 +24,14 @@
     "generate:assets": "npx capacitor-assets generate",
     "assets:customer": "node scripts/prepare-assets.mjs customer && npx capacitor-assets generate",
     "assets:vendor": "node scripts/prepare-assets.mjs vendor && npx capacitor-assets generate",
-    "assets:rider": "node scripts/prepare-assets.mjs rider && npx capacitor-assets generate"
+    "assets:rider": "node scripts/prepare-assets.mjs rider && npx capacitor-assets generate",
+    "build:rider": "VITE_APP_VARIANT=rider vite build --outDir dist-rider && node scripts/assert-no-customer-order-audio.mjs dist-rider && node scripts/verify-app-target.mjs rider web",
+    "cap:sync:rider": "npm run build:rider && CAP_APP_VARIANT=rider npx cap sync android && node scripts/verify-app-target.mjs rider native",
+    "cap:open:rider": "CAP_APP_VARIANT=rider npx cap open android",
+    "android:rider:debug": "npm run cap:sync:rider && cd android-rider && ./gradlew assembleDebug",
+    "android:rider:release": "npm run cap:sync:rider && cd android-rider && ./gradlew bundleRelease",
+    "verify:customer": "node scripts/verify-app-target.mjs customer native",
+    "verify:rider": "node scripts/verify-app-target.mjs rider native"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "2.0.75",

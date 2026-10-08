@@ -4,6 +4,8 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { RiderVariantGuard } from "@/components/RiderVariantGuard";
+import { IS_RIDER_APP } from "@/lib/appVariant";
 import { AuthProvider } from "@/hooks/useAuth";
 import { PhoneVerificationGate } from "@/components/auth/PhoneVerificationGate";
 import { CartProvider } from "@/hooks/useCart";
@@ -231,10 +233,11 @@ const App = () => {
           <BrowserRouter>
             <PortalTracker />
             <AppThemeMount />
-            <CustomerChatNotifier />
+            {!IS_RIDER_APP && <CustomerChatNotifier />}
             <PhoneVerificationGate />
-            <MedicationAlarmBootstrap />
+            {!IS_RIDER_APP && <MedicationAlarmBootstrap />}
             <Suspense fallback={null}>
+            <RiderVariantGuard>
             <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/auth" element={<Auth />} />
@@ -418,6 +421,7 @@ const App = () => {
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
+            </RiderVariantGuard>
             </Suspense>
           </BrowserRouter>
         </TooltipProvider>

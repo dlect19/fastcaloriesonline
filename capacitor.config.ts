@@ -15,10 +15,16 @@ export const iosPlugins = allPlugins.filter((n) => !IOS_EXCLUDED_PLUGINS.include
 
 const serverUrl = process.env.CAP_SERVER_URL;
 
+// Build target. Absent/anything else = customer (unchanged). CAP_APP_VARIANT=rider
+// points Capacitor at the isolated rider native project and rider web output, so a
+// rider sync can never write into android/ or dist/.
+export const capVariant = process.env.CAP_APP_VARIANT === 'rider' ? 'rider' : 'customer';
+const isRider = capVariant === 'rider';
+
 const config: CapacitorConfig = {
-  appId: 'com.customers.fastcalories.app',
-  appName: 'Fast Calories',
-  webDir: 'dist',
+  appId: isRider ? 'com.rider.fastcalories.app' : 'com.customers.fastcalories.app',
+  appName: isRider ? 'FastCalories Rider' : 'Fast Calories',
+  webDir: isRider ? 'dist-rider' : 'dist',
   ...(serverUrl
     ? {
         server: {
@@ -43,10 +49,12 @@ const config: CapacitorConfig = {
     }
   },
   ios: {
+    ...(isRider ? { path: 'ios-rider' } : {}),
     contentInset: 'always',
     includePlugins: iosPlugins
   },
   android: {
+    ...(isRider ? { path: 'android-rider' } : {}),
     allowMixedContent: false,
     captureInput: true,
     webContentsDebuggingEnabled: false

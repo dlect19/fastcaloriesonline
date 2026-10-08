@@ -1,0 +1,43 @@
+{
+	"appId": "com.rider.fastcalories.app",
+	"appName": "FastCalories Rider",
+	"webDir": "dist-rider",
+	"plugins": {
+		"LocalNotifications": {
+			"smallIcon": "ic_stat_fastcalories",
+			"iconColor": "#FF6B35"
+		},
+		"PushNotifications": {
+			"presentationOptions": [
+				"alert",
+				"sound",
+				"badge"
+			]
+		},
+		"SplashScreen": {
+			"launchAutoHide": false,
+			"launchShowDuration": 0,
+			"backgroundColor": "#f0fdf4",
+			"showSpinner": false
+		}
+	},
+	"ios": {
+		"path": "ios-rider",
+		"contentInset": "always",
+		"includePlugins": [
+			"@capacitor-firebase/messaging",
+			"@capacitor/app",
+			"@capacitor/browser",
+			"@capacitor/geolocation",
+			"@capacitor/local-notifications",
+			"@capacitor/push-notifications",
+			"@capacitor/splash-screen"
+		]
+	},
+	"android": {
+		"path": "android-rider",
+		"allowMixedContent": false,
+		"captureInput": true,
+		"webContentsDebuggingEnabled": false
+	}
+}
