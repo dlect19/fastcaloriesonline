@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor, act } from '@testing-library/react';
 import { readFileSync } from 'node:fs';
 import { decodePolyline, distanceToPathM, etaLabel, mapPoint, routeBackoffMs, shouldFitTrackingMap, shouldRefreshRoute, trackingDistanceLabel, trackingMarkerSvg } from '@/lib/trackingMapVisuals';
-import { parseComputeRoutes, routeCacheKey, computeRoutesBody } from '../../supabase/functions/_shared/rider-route-core';
+import { isUnsupportedTwoWheeler, parseComputeRoutes, routeCacheKey, computeRoutesBody } from '../../supabase/functions/_shared/rider-route-core';
 
 const mocks = vi.hoisted(() => ({ row: null as Record<string, unknown> | null, change: null as ((p: any) => void) | null, remove: vi.fn(), eq: vi.fn(), invoke: vi.fn() }));
 // Do not load Google Maps or make any external requests during unit checks.
@@ -95,6 +95,18 @@ describe('road route helpers', () => {
     expect(routeCacheKey('production', 'o', { lat: 6.50001, lng: 3.30001 }, d)).toBe(routeCacheKey('production', 'o', { lat: 6.50011, lng: 3.29991 }, d));
     expect(routeCacheKey('production', 'o', { lat: 6.5, lng: 3.3 }, d)).not.toBe(routeCacheKey('production', 'o', { lat: 6.502, lng: 3.3 }, d));
     expect(computeRoutesBody({ lat: 1, lng: 2 }, d, 'TWO_WHEELER').travelMode).toBe('TWO_WHEELER');
+  });
+  it('falls back to DRIVE only when Google rejects TWO_WHEELER as unsupported', () => {
+    const err = (status: string, message: string) => JSON.stringify({ error: { code: 400, status, message } });
+    expect(isUnsupportedTwoWheeler(400, err('INVALID_ARGUMENT', 'Travel mode TWO_WHEELER is not supported in this region.'))).toBe(true);
+    expect(isUnsupportedTwoWheeler(400, err('INVALID_ARGUMENT', 'Invalid origin latitude.'))).toBe(false);
+    expect(isUnsupportedTwoWheeler(403, err('PERMISSION_DENIED', 'TWO_WHEELER not supported'))).toBe(false);
+    expect(isUnsupportedTwoWheeler(429, err('RESOURCE_EXHAUSTED', 'Quota exceeded'))).toBe(false);
+    expect(isUnsupportedTwoWheeler(400, err('FAILED_PRECONDITION', 'Billing not enabled; TWO_WHEELER not supported'))).toBe(false);
+    expect(isUnsupportedTwoWheeler(400, err('INVALID_ARGUMENT', 'API key not valid. travel mode not supported'))).toBe(false);
+    const src = readFileSync('supabase/functions/customer-rider-route/index.ts', 'utf8');
+    expect(src).toMatch(/mode === "TWO_WHEELER" && isUnsupportedTwoWheeler\(res\.status, text\)\) \{[\s\S]*?continue;/);
+    expect(src).toContain('for (const mode of ["TWO_WHEELER", "DRIVE"] as const)');
   });
   it('server route endpoint reads origin/destination server-side and is capped and owner-scoped', () => {
     const src = readFileSync('supabase/functions/customer-rider-route/index.ts', 'utf8');
