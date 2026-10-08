@@ -43,7 +43,7 @@ export function classifyPaymentNavigation(rawUrl: string | undefined, currentHos
 }
 
 /** Custom URL scheme registered for the native app (matches Android custom_url_scheme). */
-export const NATIVE_APP_SCHEME = 'com.customers.fastcalories.app';
+export const NATIVE_APP_SCHEME = APP_IDS[APP_VARIANT];
 /** HTTPS bridge page Paystack redirects to on iOS; it hands off to NATIVE_APP_SCHEME. */
 export const PAYMENT_BRIDGE_URL = 'https://app.fastcalories.online/payment-return.html';
 
