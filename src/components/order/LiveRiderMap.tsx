@@ -53,6 +53,8 @@ export function LiveRiderMap({ orderId, destLat, destLng }: Props) {
     return () => clearInterval(t);
   }, []);
 
+  useEffect(() => { fitted.current = null; }, [destLat, destLng]);
+
   useEffect(() => {
     let cancelled = false;
     loadGoogleMapsJs().then(() => {
@@ -139,7 +141,7 @@ export function LiveRiderMap({ orderId, destLat, destLng }: Props) {
   return (
     <div ref={rootEl} className="tracking-map rounded-lg border border-border overflow-hidden bg-card">
       <div className="relative h-64 sm:h-72" onPointerDown={() => { userMoved.current = true; }} onWheel={() => { userMoved.current = true; }} onKeyDown={() => { userMoved.current = true; }}>
-        <div ref={mapEl} role="region" aria-label="Live delivery map: rider motorcycle and your delivery destination" className="w-full h-full" />
+        <div ref={mapEl} role="region" aria-label={`Live delivery map${rider ? ': your rider on a motorcycle' : ': waiting for rider'}${destination ? ', You — delivery destination' : ''}`} className="w-full h-full" />
         {mapError ? <div className="absolute inset-0 bg-card flex items-center justify-center text-sm text-muted-foreground p-4 text-center" role="alert">{mapError}</div>
           : !ready && <div className="absolute inset-0 bg-card flex items-center justify-center gap-2 text-sm text-muted-foreground"><Loader2 aria-hidden="true" className="w-4 h-4 animate-spin" />Loading map…</div>}
         {distance && <div className="absolute top-3 left-3 tracking-rider-badge rounded-full px-3 py-1.5 shadow-sm pointer-events-none" role="status" aria-label={`${state === 'stale' ? 'Last known' : 'Current'} direct distance to delivery: ${distance}`}>
