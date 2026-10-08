@@ -1,4 +1,3 @@
-# Spin & Win App Review compliance
 # Customer live-map visuals
 - [ ] Brand rider/delivery markers, direct distance line, accessible distance badge and stable framing; verify focused tests.
 

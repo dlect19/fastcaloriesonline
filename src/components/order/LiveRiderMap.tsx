@@ -35,7 +35,7 @@ export function LiveRiderMap({ orderId, destLat, destLng }: Props) {
     let cancelled = false;
     setPoint(null); setOpenedAt(Date.now()); userMoved.current = false; fitted.current = null;
     supabase.from('rider_live_locations' as any).select('lat, lng, received_at').eq('order_id', orderId).maybeSingle()
-      .then(({ data }) => { if (!cancelled && data) setPoint(data as LivePoint); });
+      .then(({ data }) => { if (!cancelled && data) setPoint(data as unknown as LivePoint); });
     const ch = supabase.channel(`rider-live-${orderId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'rider_live_locations', filter: `order_id=eq.${orderId}` },
         (payload) => {
@@ -56,7 +56,7 @@ export function LiveRiderMap({ orderId, destLat, destLng }: Props) {
   useEffect(() => {
     let cancelled = false;
     loadGoogleMapsJs().then(() => {
-      if (cancelled || !mapEl.current) return;
+      if (cancelled || !mapEl.current || mapRef.current) return;
       mapRef.current = new google.maps.Map(mapEl.current, {
         center: { lat: 6.5244, lng: 3.3792 }, zoom: 14,
         clickableIcons: false, disableDefaultUI: true, zoomControl: true,
@@ -67,6 +67,7 @@ export function LiveRiderMap({ orderId, destLat, destLng }: Props) {
       cancelled = true;
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
       markerRef.current?.setMap(null); deliveryRef.current?.setMap(null); lineRef.current?.setMap(null);
+      markerRef.current = null; deliveryRef.current = null; lineRef.current = null; shownRef.current = null;
       if (mapRef.current) google.maps.event.clearInstanceListeners(mapRef.current);
       mapRef.current = null;
     };
