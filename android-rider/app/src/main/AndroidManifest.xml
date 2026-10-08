@@ -30,14 +30,7 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Deep links for OAuth callback -->
-            <intent-filter android:autoVerify="true">
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="https" android:host="app.fastcalories.online" />
-                <data android:scheme="https" android:host="oauth.lovable.app" />
-            </intent-filter>
+            <!-- Rider target: no https App Links (those belong to the customer app). -->
 
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
