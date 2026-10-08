@@ -22,3 +22,12 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Rider target build output
+dist-rider
+android-rider/app/src/main/assets/public
+android-rider/app/build
+android-rider/.gradle
+android-rider/local.properties
+*.jks
+*.keystore
