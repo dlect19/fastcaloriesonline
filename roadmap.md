@@ -1,3 +1,6 @@
+# Customer live-map visuals
+- [x] Branded rider/delivery markers, direct distance line, accessible distance badge and stable framing; 62 focused tests passed, preview build/type checks clean. Live Google Maps rendering requires owner verification on an authorized origin.
+
 # Spin & Win App Review compliance
 - [x] Restrict native iOS to free spins at screen, component and invocation levels.
 - [x] Add permanently accessible official rules and supplied Apple disclaimer.
