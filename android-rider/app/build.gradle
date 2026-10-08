@@ -1,24 +1,25 @@
 apply plugin: 'com.android.application'
 
 android {
+    // FastCalories Rider target. Java namespace stays shared; applicationId is the store identity.
     namespace "com.customers.fastcalories.app"
     compileSdk 36
 
     defaultConfig {
-        applicationId "com.customers.fastcalories.app"
+        applicationId "com.rider.fastcalories.app"
         minSdk 24
         targetSdk 35
-        versionCode 14
-        versionName "1.0.14"
+        versionCode 100
+        versionName "2.0.0"
     }
 
     signingConfigs {
         release {
-            if (System.getenv('CM_KEYSTORE_PATH')) {
-                storeFile file(System.getenv('CM_KEYSTORE_PATH'))
-                storePassword System.getenv('CM_KEYSTORE_PASSWORD')
-                keyAlias System.getenv('CM_KEY_ALIAS')
-                keyPassword System.getenv('CM_KEY_PASSWORD')
+            if (System.getenv('RIDER_KEYSTORE_PATH')) {
+                storeFile file(System.getenv('RIDER_KEYSTORE_PATH'))
+                storePassword System.getenv('RIDER_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('RIDER_KEY_ALIAS')
+                keyPassword System.getenv('RIDER_KEY_PASSWORD')
             }
         }
     }

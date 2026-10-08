@@ -149,6 +149,35 @@
           ]
         }
       }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:356075693003:android:3df8fa454b876ee359cc4e",
+        "android_client_info": {
+          "package_name": "com.rider.fastcalories.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "356075693003-dina3r161kcmru1au5o3qsiu4fpg63s7.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC7jXZLKBnsdhLItmoGkjIz1Xi6luj7FvQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "356075693003-dina3r161kcmru1au5o3qsiu4fpg63s7.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
     }
   ],
   "configuration_version": "1"
