@@ -11,6 +11,7 @@ export const GOOGLE_SKU_COST_USD: Record<string, number> = {
   reverse_geocode: 0.005,
   places_autocomplete: 0.00283,
   place_details: 0.017,
+  routes_compute: 0.005,
 };
 
 export const DEFAULT_DM_DAILY_CAP: Record<Env, number> = { production: 300, development: 50 };
