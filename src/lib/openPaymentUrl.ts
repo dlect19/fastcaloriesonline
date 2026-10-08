@@ -1,3 +1,4 @@
+import { APP_IDS, APP_VARIANT } from "@/lib/appVariant";
 import { Capacitor } from '@capacitor/core';
 // Static imports: these are tiny JS proxies (no native code). A lazy chunk that
 // fails to load (stale cache / remote bundle) previously threw and silently
