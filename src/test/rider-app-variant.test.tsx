@@ -15,7 +15,6 @@ vi.mock('@/integrations/supabase/client', () => ({
   },
 }));
 import { RiderVariantGuard } from '@/components/RiderVariantGuard';
-// @ts-expect-error plain mjs
 import { checkTarget } from '../../scripts/verify-app-target.mjs';
 
 const root = process.cwd();
