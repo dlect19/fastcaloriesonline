@@ -15,7 +15,8 @@ const corsHeaders = {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-type RouteOk = { ok: true; distance_m: number; duration_s: number; polyline: string; computed_at: string };
+// origin_* = the exact rider fix the route was computed from (a cache hit never relabels an older origin as new).
+type RouteOk = { ok: true; distance_m: number; duration_s: number; polyline: string; computed_at: string; origin_received_at: string; origin_lat: number; origin_lng: number };
 type RouteFail = { ok: false; reason: string };
 const cache = new Map<string, { at: number; value: RouteOk }>();
 const inFlight = new Map<string, Promise<RouteOk | RouteFail>>();
@@ -55,7 +56,7 @@ Deno.serve(async (req) => {
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < ROUTE_CACHE_TTL_MS) {
     logGoogleUsage({ ...base, outcome: "cache_hit", billable_elements: 0, cost_estimate_usd: 0, cache_status: "hit" }, svc);
-    return json({ ...hit.value, origin_received_at: loc.received_at, cached: true });
+    return json({ ...hit.value, latest_received_at: loc.received_at, cached: true });
   }
 
   let p = inFlight.get(key);
@@ -103,7 +104,7 @@ Deno.serve(async (req) => {
           const parsed = parseComputeRoutes(await res.json());
           logGoogleUsage({ ...base, outcome: parsed.ok ? "success" : "failed", status_code: res.status, billable_elements: 1, cost_estimate_usd: 0.005, latency_ms: latency, cache_status: "miss", meta: { mode, result: parsed.ok ? "route" : parsed.reason } }, svc);
           if (parsed.ok) {
-            const value: RouteOk = { ok: true, distance_m: parsed.distance_m, duration_s: parsed.duration_s, polyline: parsed.polyline, computed_at: new Date().toISOString() };
+            const value: RouteOk = { ok: true, distance_m: parsed.distance_m, duration_s: parsed.duration_s, polyline: parsed.polyline, computed_at: new Date().toISOString(), origin_received_at: loc.received_at, origin_lat: origin.lat, origin_lng: origin.lng };
             cache.set(key, { at: Date.now(), value });
             if (cache.size > 500) cache.delete(cache.keys().next().value!);
             return value;
@@ -121,5 +122,6 @@ Deno.serve(async (req) => {
     p.finally(() => inFlight.delete(key));
   }
   const result = await p;
-  return json({ ...result, origin_received_at: loc.received_at });
+  // Single-flight joiners get the origin the shared computation actually used.
+  return json(result.ok ? { ...result, latest_received_at: loc.received_at } : { ...result, origin_received_at: loc.received_at });
 });
