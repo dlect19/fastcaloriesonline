@@ -57,12 +57,11 @@ export function checkTarget(name, scope = 'all', base = root) {
   }
 
   if (scope !== 'native') {
-    const dir = join(base, t.webDir, 'assets');
-    if (existsSync(dir)) {
-      const js = readdirSync(dir).filter((f) => f.endsWith('.js')).map((f) => readFileSync(join(dir, f), 'utf8')).join('\n');
-      const marker = /VITE_APP_VARIANT|"rider"===|=== ?"rider"/.test(js);
-      if (!marker) errs.push(`${t.webDir} bundle has no variant marker`);
-    } else if (scope === 'web') errs.push(`${t.webDir} not built`);
+    const stamp = read(`${t.webDir}/app-variant.json`);
+    if (!stamp) { if (scope === 'web') errs.push(`${t.webDir}/app-variant.json missing (not built?)`); }
+    else if (JSON.parse(stamp).variant !== name) errs.push(`${t.webDir} was built as "${JSON.parse(stamp).variant}", expected "${name}"`);
+    const html = read(`${t.webDir}/index.html`);
+    if (name === 'rider' && html && !/FastCalories Rider/.test(read(`${t.webDir}/manifest.webmanifest`) || '')) errs.push('rider web manifest branding missing');
   }
   return errs;
 }

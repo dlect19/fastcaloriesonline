@@ -52,6 +52,20 @@ function patchComposeRefsInChunks(): Plugin {
   };
 }
 
+/** Emits app-variant.json so build guards can verify which target a bundle is. */
+function appVariantStamp(variant: string): Plugin {
+  return {
+    name: "app-variant-stamp",
+    apply: "build",
+    generateBundle() {
+      this.emitFile({ type: "asset", fileName: "app-variant.json", source: JSON.stringify({ variant }) });
+    },
+  };
+}
+
+const APP_VARIANT = process.env.VITE_APP_VARIANT === "rider" ? "rider" : "customer";
+const IS_RIDER = APP_VARIANT === "rider";
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   server: {
@@ -63,6 +77,7 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: [
     patchComposeRefsInChunks(),
+    appVariantStamp(APP_VARIANT),
     react(),
     mode === "development" && componentTagger(),
     VitePWA({
@@ -72,14 +87,14 @@ export default defineConfig(({ mode }) => ({
       },
       includeAssets: ["favicon.ico", "images/fast-calories-logo.png"],
       manifest: {
-        name: "Fast Calories - Eat Smart, Live Healthy",
-        short_name: "Fast Calories",
+        name: IS_RIDER ? "FastCalories Rider" : "Fast Calories - Eat Smart, Live Healthy",
+        short_name: IS_RIDER ? "FastCalories Rider" : "Fast Calories",
         description:
           "Nigeria's #1 health-aware food delivery platform. Track calories, order healthy meals, and achieve your health goals.",
         theme_color: "#16a34a",
         background_color: "#ffffff",
         display: "standalone",
-        start_url: "/",
+        start_url: IS_RIDER ? "/rider/auth" : "/",
         icons: [
           {
             src: "/pwa-192x192.png",
