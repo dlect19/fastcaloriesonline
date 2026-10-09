@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="colorPrimary">#FF6B35</color>
-    <color name="colorPrimaryDark">#E55A2B</color>
-    <color name="colorAccent">#FF6B35</color>
-    <color name="notificationAccent">#FF6B35</color>
+    <!-- FastCalories Rider brand green (sampled from resources/rider/icon.png). Customer app keeps orange. -->
+    <color name="colorPrimary">#1E9301</color>
+    <color name="colorPrimaryDark">#167001</color>
+    <color name="colorAccent">#1E9301</color>
+    <color name="notificationAccent">#1E9301</color>
 </resources>
