@@ -302,6 +302,13 @@
       "when": 1791288550432,
       "tag": "0042_rider_live_tracking_least_privilege",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1791576259273,
+      "tag": "0043_migration",
+      "breakpoints": true
     }
   ]
 }

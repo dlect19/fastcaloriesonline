@@ -7900,6 +7900,42 @@ export type Database = {
         }
         Relationships: []
       }
+      rider_tracking_tokens: {
+        Row: {
+          created_at: string
+          environment: string
+          expires_at: string
+          id: string
+          last_used_at: string | null
+          order_id: string
+          revoked_at: string | null
+          rider_user_id: string
+          token_hash: string
+        }
+        Insert: {
+          created_at?: string
+          environment?: string
+          expires_at: string
+          id?: string
+          last_used_at?: string | null
+          order_id: string
+          revoked_at?: string | null
+          rider_user_id: string
+          token_hash: string
+        }
+        Update: {
+          created_at?: string
+          environment?: string
+          expires_at?: string
+          id?: string
+          last_used_at?: string | null
+          order_id?: string
+          revoked_at?: string | null
+          rider_user_id?: string
+          token_hash?: string
+        }
+        Relationships: []
+      }
       rider_withdrawal_ledger: {
         Row: {
           balance_after: number | null
@@ -11825,6 +11861,10 @@ export type Database = {
         Args: { _user_id: string; _vendor_id: string }
         Returns: boolean
       }
+      issue_rider_tracking_token: {
+        Args: { p_order_id: string }
+        Returns: Json
+      }
       log_admin_activity: {
         Args: {
           _action: string
@@ -11983,6 +12023,18 @@ export type Database = {
         }
         Returns: Json
       }
+      publish_rider_location_native: {
+        Args: {
+          p_accuracy?: number
+          p_captured_at?: string
+          p_heading?: number
+          p_lat: number
+          p_lng: number
+          p_speed?: number
+          p_token: string
+        }
+        Returns: Json
+      }
       purchase_event_tickets: {
         Args: {
           p_environment?: string
@@ -12092,6 +12144,7 @@ export type Database = {
         Args: { p_order_id: string }
         Returns: boolean
       }
+      revoke_my_rider_tracking_tokens: { Args: never; Returns: number }
       rider_active_order_count: {
         Args: { _rider_user_id: string }
         Returns: number

@@ -12,7 +12,7 @@
         <!-- Monochrome status-bar icon for FCM notifications shown by the system -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
-            android:resource="@drawable/ic_stat_fastcalories" />
+            android:resource="@drawable/ic_stat_rider" />
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_color"
             android:resource="@color/notificationAccent" />
@@ -86,6 +86,13 @@
             </intent-filter>
         </service>
 
+        <!-- Native active-delivery tracking: location foreground service started only while the
+             app is visible (while-in-use permission only; no "all the time" location). -->
+        <service
+            android:name=".RiderTrackingService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+
     </application>
 
     <!-- Network -->
@@ -114,6 +121,7 @@
 
     <!-- Background & Foreground Services -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 

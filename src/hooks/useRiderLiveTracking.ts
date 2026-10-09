@@ -23,6 +23,8 @@ import {
   ACTIVE_TRACKING_STATUSES, isMoving, isUsableFix, LatestOnlyBuffer, shouldPublish, type Fix,
 } from '@/lib/riderTracking';
 import { canUseNativeGeolocation, detectRuntime, isUnimplementedError, type RuntimePlatform } from '@/lib/nativeRuntime';
+import { isNativeRiderTrackingAvailable, NATIVE_STATUS_POLL_MS, ordersKeyOf, planNativeTracking } from '@/lib/nativeRiderTracking';
+import { RiderTracking } from '@/plugins/RiderTrackingPlugin';
 
 export type RiderTrackingStatus =
   | 'idle' | 'paused_offline' | 'starting' | 'tracking' | 'problem' | 'update_required' | 'disabled';
@@ -71,6 +73,8 @@ export interface TrackingDiagnostics {
   online: boolean; assigned: number; platform: RuntimePlatform | 'native' | 'browser';
   bridge?: boolean; geoPlugin?: boolean; perm?: string;
   secure: boolean; lastCode: string | null; stage: AcquisitionStage;
+  /** Rider Android native foreground service owns tracking (works while backgrounded/locked). */
+  nativeBackground?: boolean;
 }
 
 /** Runs one fix ladder step-by-step; stops on the first fix or a permission denial. */
@@ -93,6 +97,9 @@ export function useRiderLiveTracking(riderUserId: string | null | undefined, opt
   // Detected once per mount from the Capacitor bridge, never from URL/UA.
   const [runtime] = useState(() => detectRuntime());
   const native = canUseNativeGeolocation(runtime);
+  // Rider Android build with the native foreground service: it owns GPS + upload (also while
+  // the app is backgrounded/locked); the JS watcher below is then never started.
+  const [nativeBg] = useState(() => isNativeRiderTrackingAvailable());
   const pluginMissing = runtime.bridge && !runtime.geolocationPlugin;
   const [lastCode, setLastCode] = useState<string | null>(null);
   const [stage, setStage] = useState<AcquisitionStage>(null);
@@ -161,8 +168,79 @@ export function useRiderLiveTracking(riderUserId: string | null | undefined, opt
     else if (!active) { setStatus(!online && orders.length > 0 ? 'paused_offline' : 'idle'); setProblem(null); }
   }, [active, cfg.enabled, online, orders.length]);
 
+  // ---- Native background tracking (android-rider) ----
+  const nativeStartedKey = useRef<string | null>(null);
+  const nativeExpiresAt = useRef(0);
+  const nativeRestarts = useRef(0);
+  const nativeBusy = useRef(false);
+  const [nativeTick, setNativeTick] = useState(0);
   useEffect(() => {
-    if (!active) return;
+    if (!nativeBg) return;
+    let cancelled = false;
+    const run = async () => {
+      if (nativeBusy.current || cancelled) return;
+      nativeBusy.current = true;
+      try {
+        let running = false;
+        try { running = (await RiderTracking.getStatus()).running; } catch { /* treat as stopped */ }
+        const plan = planNativeTracking({
+          active, visible: document.visibilityState === 'visible', running,
+          startedKey: nativeStartedKey.current, ordersKey: ordersKeyOf(ordersRef.current),
+          expiresAt: nativeExpiresAt.current, now: Date.now(), restarts: nativeRestarts.current,
+        });
+        if (plan === 'stop') {
+          await RiderTracking.stop().catch(() => {});
+          nativeStartedKey.current = null; nativeExpiresAt.current = 0; nativeRestarts.current = 0;
+          void supabase.rpc('revoke_my_rider_tracking_tokens' as any).then(() => {}, () => {});
+          return;
+        }
+        if (plan !== 'start') { if (running) { setStatus('tracking'); setProblem(null); } return; }
+        if (nativeStartedKey.current === ordersKeyOf(ordersRef.current) && !running) nativeRestarts.current++;
+        setStatus((st) => (st === 'tracking' ? st : 'starting'));
+        const request = requestPermRef.current; requestPermRef.current = false;
+        const perm = await nativePermission(request);
+        setPermLabel(perm.label);
+        if (perm.problem) { setStatus('problem'); setProblem(perm.problem); setLastCode(perm.problem); return; }
+        RiderTracking.requestPermissions({ permissions: ['notifications'] }).catch(() => {});
+        const issued: { orderId: string; token: string }[] = [];
+        let exp = Infinity;
+        for (const o of ordersRef.current) {
+          const { data, error } = await supabase.rpc('issue_rider_tracking_token' as any, { p_order_id: o.id });
+          if (error && isMissingRpcError(error)) { setStatus('update_required'); return; }
+          const r = data as { ok?: boolean; token?: string; expires_at?: string } | null;
+          if (r?.ok && r.token) { issued.push({ orderId: o.id, token: r.token }); exp = Math.min(exp, Date.parse(r.expires_at!)); }
+        }
+        if (cancelled) return;
+        if (!issued.length) { loadRef.current(); return; }
+        await RiderTracking.start({
+          supabaseUrl: import.meta.env.VITE_SUPABASE_URL, anonKey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          expiresAt: exp, orders: issued,
+        });
+        nativeStartedKey.current = ordersKeyOf(ordersRef.current); nativeExpiresAt.current = exp;
+        setStatus('tracking'); setProblem(null); setLastCode(null);
+      } catch (e: any) {
+        setLastCode(String(e?.code || 'native_start_failed'));
+        setStatus('problem'); setProblem(e?.code === 'permission_denied' ? 'app_permission_denied' : 'position_unavailable');
+      } finally { nativeBusy.current = false; }
+    };
+    void run();
+    const t = setInterval(() => { if (document.visibilityState === 'visible') void run(); }, NATIVE_STATUS_POLL_MS);
+    const onVis = () => { if (document.visibilityState === 'visible') void run(); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => { cancelled = true; clearInterval(t); document.removeEventListener('visibilitychange', onVis); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nativeBg, active, orders, nativeTick]);
+  // Logout / unmount: stop the native service and drop its tokens.
+  useEffect(() => {
+    if (!nativeBg) return;
+    const { data } = supabase.auth.onAuthStateChange((ev) => {
+      if (ev === 'SIGNED_OUT') { void RiderTracking.stop().catch(() => {}); nativeStartedKey.current = null; }
+    });
+    return () => { data.subscription.unsubscribe(); void RiderTracking.stop().catch(() => {}); nativeStartedKey.current = null; };
+  }, [nativeBg]);
+
+  useEffect(() => {
+    if (!active || nativeBg) return;
     // Native shell without the Geolocation plugin: never fall back to browser
     // geolocation inside the app — the installed app must be updated.
     if (pluginMissing) { setStatus('update_required'); setLastCode('native_plugin_missing'); return; }
@@ -400,6 +478,7 @@ export function useRiderLiveTracking(riderUserId: string | null | undefined, opt
     loadRef.current();
     setProblem(null); setLastCode(null);
     setStatus('starting');
+    if (nativeBg) { requestPermRef.current = true; nativeRestarts.current = 0; nativeStartedKey.current = null; setNativeTick((n) => n + 1); return; }
     if (native) {
       requestPermRef.current = true; // OS prompt from this rider action
     } else if ('geolocation' in navigator) {
@@ -416,13 +495,13 @@ export function useRiderLiveTracking(riderUserId: string | null | undefined, opt
     }
     // Restart acquisition: effect cleanup clears any existing watcher/timers first.
     setAttempt((n) => n + 1);
-  }, [native]);
+  }, [native, nativeBg]);
 
   const diagnostics: TrackingDiagnostics = {
     online, assigned: orders.length,
     platform: runtime.platform, bridge: runtime.bridge, geoPlugin: runtime.geolocationPlugin, perm: permLabel,
     secure: typeof window === 'undefined' ? true : window.isSecureContext !== false,
-    lastCode, stage,
+    lastCode, stage, nativeBackground: nativeBg,
   };
   return { status, problem, activeOrderCount: orders.length, retry, diagnostics };
 }
