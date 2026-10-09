@@ -6,5 +6,5 @@
 - **Settings** (`platform_settings`, admin card in Riders → Distance): `rider_tracking_enabled`, `_moving_interval_s` (10–15), `_stationary_interval_s` (30–60), `_stale_after_s`, `_retention_hours`, `_min_server_interval_s`, `_daily_cap`, `_route_refresh_min` (reserved).
 
 ## Native settings
-- **Android:** `ACCESS_FINE_LOCATION` and `ACCESS_COARSE_LOCATION` are already used through the rider Prominent Disclosure flow. Tracking runs while the app is open, in the foreground. Background updates depend on the existing rider foreground service; there is no extra background-location plugin.
+- **Android (rider target):** native `RiderTrackingService` uploads in the background/locked for active deliveries — see docs/RIDER_ANDROID_BUILD.md. Customer Android app, web/PWA and iOS: foreground only.
 - **iOS:** `NSLocationWhenInUseUsageDescription` must be in Info.plist. Tracking runs while the app is open. Background tracking would need `UIBackgroundModes: location`, the "Always" permission and App Store review, and has **not** been added.

@@ -63,3 +63,46 @@ higher, uninstall the old Rider app first. Play App Signing builds need the orig
 
 ## Customer app (unchanged)
 `npm run cap:sync:android`, then `npm run android:build` or `npm run android:release`.
+
+## Branding (rider only)
+- Launcher/adaptive icons in `android-rider/app/src/main/res/mipmap-*` come from `resources/rider/icon.png`
+  (official green artwork); adaptive foreground is the logo inside the 66/108 safe zone on white.
+- Notifications: monochrome `drawable/ic_stat_rider.xml`, accent `#1E9301`, large icon `drawable/ic_rider_large.png`.
+- `npm run assets:rider` no longer runs `capacitor-assets generate` (that tool writes into the customer
+  `android/` project). The rider icons are committed and survive `cap sync` (sync never touches `res/`).
+
+## Background location (native, active deliveries only)
+`RiderTrackingService` (location foreground service, persistent green "FastCalories Rider" notification)
+reads fused GPS and uploads **natively** to `publish_rider_location_native` while the app is in the
+background or the screen is locked. It is started from the app while visible, only for the rider's
+authorised active deliveries, using server-issued per-delivery tokens (4 h, hash-only on the server,
+checked against the order's rider/status on every upload). It stops and clears its tokens on delivered,
+cancelled, reassigned, offline, logout, kill switch or token expiry. ~1 s while moving, 10 s heartbeat
+when still; best-effort, not guaranteed.
+
+Permissions: precise/approximate location ("While using the app" is enough — no "Allow all the time"),
+notifications (Android 13+, so the persistent notification is visible), `FOREGROUND_SERVICE_LOCATION`.
+
+### Mac: rider-only build
+```bash
+git pull
+npm install
+npm run android:rider:debug          # build:rider → cap sync (CAP_APP_VARIANT=rider) → verify → assembleDebug
+adb install -r android-rider/app/build/outputs/apk/debug/app-debug.apk
+# release: export RIDER_KEYSTORE_* then: npm run android:rider:release
+```
+Never run `npx cap sync` / `npm run cap:sync:android` for the rider — those are the customer app.
+
+### Lock-screen test
+1. Sign in as a test rider, go Online, accept a test delivery (status assigned/picked_up/on_the_way).
+2. Allow location and notifications; confirm the "Sharing your location…" notification appears.
+3. Switch to another app, then lock the screen for 2–3 minutes while moving.
+4. On the customer's order page (other phone), "Last updated" should keep refreshing.
+5. Mark delivered: the notification disappears within ~15 s of the next upload.
+Logs: `adb logcat | grep -i -E "RiderTracking|fused"`.
+
+### Limits
+Android may still pause GPS: battery saver, OEM "app killers" (Xiaomi/Oppo/Vivo/Huawei/Samsung sleeping
+apps) — set the rider app to "Unrestricted"/"No restrictions" battery. Force-stop or swiping the app away on
+some OEMs ends the service; it restarts only when the rider reopens the app (Android forbids starting a
+location service from the background). Web/PWA and iOS stay foreground-only.
