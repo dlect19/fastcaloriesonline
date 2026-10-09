@@ -35,8 +35,9 @@ const config: CapacitorConfig = {
     : {}),
   plugins: {
     LocalNotifications: {
-      smallIcon: 'ic_stat_fastcalories',
-      iconColor: '#FF6B35'
+      // Rider target: its own monochrome rider mark + rider green accent; customer unchanged.
+      smallIcon: isRider ? 'ic_stat_rider' : 'ic_stat_fastcalories',
+      iconColor: isRider ? '#1E9301' : '#FF6B35'
     },
     PushNotifications: {
       presentationOptions: ['alert', 'sound', 'badge']

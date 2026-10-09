@@ -44,7 +44,15 @@ export function checkTarget(name, scope = 'all', base = root) {
         if (!existsSync(join(base, `${app}/src/main/res/mipmap-${d}/ic_launcher.png`))) errs.push(`rider launcher icon missing for ${d}`);
       if (!existsSync(join(base, `${app}/src/main/res/mipmap-anydpi-v26/ic_launcher.xml`))) errs.push('rider adaptive icon missing');
       if (!existsSync(join(base, `${app}/src/main/res/drawable/ic_stat_fastcalories.xml`))) errs.push('rider notification icon missing');
+      if (!existsSync(join(base, `${app}/src/main/res/drawable/ic_stat_rider.xml`))) errs.push('rider monochrome notification icon (ic_stat_rider) missing');
+      const colors = read(`${app}/src/main/res/values/colors.xml`) || '';
+      if (!/name="notificationAccent">#1E9301</.test(colors)) errs.push('rider notification accent is not rider green');
+      if (!/RiderTrackingService"[\s\S]*?foregroundServiceType="location"/.test(manifest)) errs.push('rider manifest missing location foreground service');
+      if (!manifest.includes('android.permission.FOREGROUND_SERVICE_LOCATION')) errs.push('rider manifest missing FOREGROUND_SERVICE_LOCATION');
+      const main = read(`${app}/src/main/java/com/customers/fastcalories/app/MainActivity.java`) || '';
+      if (!main.includes('registerPlugin(RiderTrackingPlugin.class)')) errs.push('RiderTrackingPlugin not registered in rider MainActivity');
     }
+    if (name === 'customer' && manifest.includes('RiderTrackingService')) errs.push('customer manifest must not include the rider tracking service');
     const capCfg = read(`${app}/src/main/assets/capacitor.config.json`);
     if (capCfg) {
       const c = JSON.parse(capCfg);
