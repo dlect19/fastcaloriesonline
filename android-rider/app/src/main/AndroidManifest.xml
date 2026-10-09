@@ -87,7 +87,7 @@
         </service>
 
         <!-- Native active-delivery tracking: location foreground service started only while the
-             app is visible (while-in-use permission; no ACCESS_BACKGROUND_LOCATION). -->
+             app is visible (while-in-use permission only; no "all the time" location). -->
         <service
             android:name=".RiderTrackingService"
             android:exported="false"
