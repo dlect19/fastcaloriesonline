@@ -14,4 +14,12 @@ export interface RiderTrackingPluginApi {
   getStatus(): Promise<NativeTrackingStatus>;
   requestPermissions(o: { permissions: ('location' | 'notifications')[] }): Promise<Record<string, string>>;
 }
-export const RiderTracking = registerPlugin<RiderTrackingPluginApi>('RiderTracking');
+let instance: RiderTrackingPluginApi | null = null;
+const get = () => (instance ??= registerPlugin<RiderTrackingPluginApi>('RiderTracking'));
+/** Registered lazily so contexts without the plugin (customer/web/tests) never touch it. */
+export const RiderTracking: RiderTrackingPluginApi = {
+  start: (o) => get().start(o),
+  stop: () => get().stop(),
+  getStatus: () => get().getStatus(),
+  requestPermissions: (o) => get().requestPermissions(o),
+};
