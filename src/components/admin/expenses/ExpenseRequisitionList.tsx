@@ -14,6 +14,18 @@ import { useToast } from '@/hooks/use-toast';
 import { Check, X, CreditCard, Banknote, Clock, FileText, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 
+/** Pay is offered only when no Paystack transfer can still be in flight. */
+export function canStartNewTransfer(status: string, transferState?: string | null): boolean {
+  if (status !== 'approved') return false;
+  return !transferState || transferState === 'failed' || transferState === 'reversed';
+}
+
+const TRANSFER_LABEL: Record<string, string> = {
+  initiating: 'Transfer starting…',
+  processing: 'Transfer processing at Paystack',
+  unknown: 'Transfer status unconfirmed — check before paying again',
+};
+
 interface Requisition {
   id: string;
   title: string;
@@ -35,6 +47,8 @@ interface Requisition {
   payment_note: string | null;
   environment: string;
   created_at: string;
+  transfer_state?: string | null;
+  transfer_reference?: string | null;
 }
 
 interface Props {
@@ -172,10 +186,27 @@ export function ExpenseRequisitionList({ filter, onUpdate }: Props) {
       if (error) throw error;
       if (!data?.success) throw new Error(data?.error || 'Payment failed');
 
-      toast({ title: 'Payment initiated via Paystack', description: data.data?.message });
+      toast({ title: data.data?.state === 'success' ? 'Paid via Paystack' : 'Transfer processing', description: data.data?.message });
       onUpdate();
     } catch (e: any) {
       toast({ title: 'Payment failed', description: e.message, variant: 'destructive' });
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleCheckStatus = async (req: Requisition) => {
+    setProcessing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('process-expense', {
+        body: { requisition_id: req.id, action: 'reconcile' },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Could not confirm status');
+      toast({ title: 'Status updated', description: `Paystack: ${data.data?.provider_outcome}` });
+      onUpdate();
+    } catch (e: any) {
+      toast({ title: 'Still unconfirmed', description: e.message, variant: 'destructive' });
     } finally {
       setProcessing(false);
     }
@@ -282,7 +313,18 @@ export function ExpenseRequisitionList({ filter, onUpdate }: Props) {
                         </Button>
                       </>
                     )}
-                    {req.status === 'approved' && (
+                    {req.status === 'approved' && !canStartNewTransfer(req.status, req.transfer_state) && (
+                      <div className="flex flex-col items-end gap-2">
+                        <span className="flex items-center gap-1 text-xs text-warning">
+                          <Clock className="w-3 h-3" /> {TRANSFER_LABEL[req.transfer_state || ''] || 'Transfer in progress'}
+                        </span>
+                        <Button size="sm" variant="outline" onClick={() => handleCheckStatus(req)} disabled={processing} className="gap-1">
+                          {processing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Clock className="w-3 h-3" />}
+                          Check status
+                        </Button>
+                      </div>
+                    )}
+                    {canStartNewTransfer(req.status, req.transfer_state) && (
                       <>
                         <Button
                           size="sm"
