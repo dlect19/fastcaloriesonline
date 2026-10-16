@@ -4164,6 +4164,11 @@ export type Database = {
           created_at: string
           created_by: string | null
           environment: string
+          fee_evidence: Json | null
+          fee_kobo: number | null
+          fee_refund_kobo: number | null
+          fee_refund_tx_id: string | null
+          fee_tx_id: string | null
           finalized_at: string | null
           id: string
           last_event: string | null
@@ -4185,6 +4190,11 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           environment: string
+          fee_evidence?: Json | null
+          fee_kobo?: number | null
+          fee_refund_kobo?: number | null
+          fee_refund_tx_id?: string | null
+          fee_tx_id?: string | null
           finalized_at?: string | null
           id?: string
           last_event?: string | null
@@ -4206,6 +4216,11 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           environment?: string
+          fee_evidence?: Json | null
+          fee_kobo?: number | null
+          fee_refund_kobo?: number | null
+          fee_refund_tx_id?: string | null
+          fee_tx_id?: string | null
           finalized_at?: string | null
           id?: string
           last_event?: string | null
@@ -12192,6 +12207,24 @@ export type Database = {
           p_wallet_id: string
         }
         Returns: undefined
+      }
+      record_expense_transfer_fee: {
+        Args: {
+          p_evidence?: Json
+          p_fee_kobo: number
+          p_reference: string
+          p_source: string
+        }
+        Returns: Json
+      }
+      record_expense_transfer_fee_refund: {
+        Args: {
+          p_evidence: Json
+          p_reference: string
+          p_refund_kobo: number
+          p_source: string
+        }
+        Returns: Json
       }
       record_expense_transfer_outcome: {
         Args: {

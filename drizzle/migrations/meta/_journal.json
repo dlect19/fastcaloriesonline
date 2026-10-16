@@ -316,6 +316,13 @@
       "when": 1792144456344,
       "tag": "0044_expense_transfer_attempts",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1792146595419,
+      "tag": "0045_expense_transfer_fees",
+      "breakpoints": true
     }
   ]
 }
