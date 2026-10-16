@@ -1,7 +1,7 @@
 // Shared client helpers for the admin Paystack audit area.
 // Presentation + filtering only — no financial mutation happens here.
 
-export type PaystackPurpose = 'order_payment' | 'wallet_funding' | 'payout_transfer' | 'unknown';
+export type PaystackPurpose = 'order_payment' | 'wallet_funding' | 'payout_transfer' | 'expense_transfer' | 'unknown';
 export type ProcessingState = 'received' | 'verified' | 'processed' | 'rejected' | 'failed' | 'duplicate';
 
 /** Only genuine top-ups belong in the Wallet Funding tab. */
@@ -47,6 +47,7 @@ export const PURPOSE_LABEL: Record<PaystackPurpose, string> = {
   order_payment: 'Order payment',
   wallet_funding: 'Wallet funding',
   payout_transfer: 'Payout / transfer',
+  expense_transfer: 'Company expense transfer',
   unknown: 'Unknown',
 };
 

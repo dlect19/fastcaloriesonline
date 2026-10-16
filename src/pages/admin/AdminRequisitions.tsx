@@ -26,6 +26,7 @@ interface MyRequisition {
   account_name: string | null;
   approved_by_name: string | null;
   approved_at: string | null;
+  transfer_state?: string | null;
   rejection_reason: string | null;
   payment_method: string | null;
   paid_at: string | null;
@@ -184,6 +185,9 @@ export default function AdminRequisitions() {
                           <p className="text-xs text-primary mt-2">
                             ✓ Approved by {req.approved_by_name} on {format(new Date(req.approved_at!), 'MMM d, yyyy')}
                           </p>
+                        )}
+                        {req.status === 'approved' && ['initiating', 'processing', 'unknown'].includes(req.transfer_state || '') && (
+                          <p className="text-xs text-warning mt-2">Payment processing at Paystack — awaiting confirmation</p>
                         )}
                         {req.status === 'rejected' && (
                           <div className="mt-2">

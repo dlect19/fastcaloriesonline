@@ -4,7 +4,7 @@
 // keys, card numbers, authorization codes, bank account secrets, raw webhook
 // signatures or raw payloads. Only the safe fields below are persisted.
 
-export type PaystackPurpose = "order_payment" | "wallet_funding" | "payout_transfer" | "unknown";
+export type PaystackPurpose = "order_payment" | "wallet_funding" | "payout_transfer" | "expense_transfer" | "unknown";
 export type PaystackProcessingState =
   | "received" | "verified" | "processed" | "rejected" | "failed" | "duplicate";
 
@@ -34,7 +34,10 @@ export function classifyPaystackPurpose(input: {
   reference?: string | null;
 }): PaystackPurpose {
   const event = String(input.eventType ?? "");
-  if (event.startsWith("transfer.")) return "payout_transfer";
+  if (event.startsWith("transfer.")) {
+    // Server-issued company expense references (EXP-<ms>-<rand>) are not payouts.
+    return /^EXP-\d{10,}-[a-z0-9]+$/i.test(String(input.reference ?? "")) ? "expense_transfer" : "payout_transfer";
+  }
 
   const type = String((input.metadata as any)?.type ?? "").toLowerCase();
   if (type === "wallet_funding" || type === "ad_wallet_funding") return "wallet_funding";
