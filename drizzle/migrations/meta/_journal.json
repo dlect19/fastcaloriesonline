@@ -309,6 +309,13 @@
       "when": 1791576259273,
       "tag": "0043_migration",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1792144456344,
+      "tag": "0044_expense_transfer_attempts",
+      "breakpoints": true
     }
   ]
 }

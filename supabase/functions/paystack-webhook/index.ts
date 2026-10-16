@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { crypto } from "https://deno.land/std@0.190.0/crypto/mod.ts";
 import { getWhatsAppFromNumber } from "../_shared/whatsapp.ts";
+import { isExpenseReference } from "../_shared/expenseTransfer.ts";
 import {
   classifyPaystackPurpose,
   recordWebhookAttempt,
@@ -140,14 +141,27 @@ const handler = async (req: Request): Promise<Response> => {
         await handleChargeSuccess(supabaseAdmin, event.data, platformEnvironment, auditKey);
         break;
       case "transfer.success":
-        await handleTransferSuccess(supabaseAdmin, event.data, platformEnvironment);
-        break;
       case "transfer.failed":
-        await handleTransferFailed(supabaseAdmin, event.data, platformEnvironment);
+      case "transfer.reversed": {
+        const ref = event.data?.reference ?? null;
+        let matched: boolean;
+        if (isExpenseReference(ref)) {
+          matched = await handleExpenseTransferEvent(supabaseAdmin, event.event, event.data, platformEnvironment);
+        } else if (event.event === "transfer.success") {
+          matched = await handleTransferSuccess(supabaseAdmin, event.data, platformEnvironment);
+        } else if (event.event === "transfer.failed") {
+          matched = await handleTransferFailed(supabaseAdmin, event.data, platformEnvironment);
+        } else {
+          matched = await handleTransferReversed(supabaseAdmin, event.data, platformEnvironment);
+        }
+        if (!matched) {
+          // Never claim "processed" for a transfer we could not attribute.
+          await updateWebhookAudit(supabaseAdmin, auditKey, { processingState: "failed", reasonCode: "unmatched_transfer", purpose });
+          return new Response(JSON.stringify({ received: true }),
+            { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } });
+        }
         break;
-      case "transfer.reversed":
-        await handleTransferReversed(supabaseAdmin, event.data, platformEnvironment);
-        break;
+      }
       case "dedicatedaccount.assign.success":
         await handleDVAAssigned(supabaseAdmin, event.data);
         break;
@@ -611,7 +625,23 @@ async function handleWalletFunding(supabase: SupabaseClient, data: any, environm
 }
 
 // deno-lint-ignore no-explicit-any
-async function handleTransferSuccess(supabase: SupabaseClient, data: any, environment: string) {
+async function handleExpenseTransferEvent(supabase: SupabaseClient, eventType: string, data: any, environment: string): Promise<boolean> {
+  if (environment === "development") return true;
+  const outcome = eventType === "transfer.success" ? "success" : eventType === "transfer.reversed" ? "reversed" : "failed";
+  const { data: result, error } = await supabase.rpc("record_expense_transfer_outcome", {
+    p_reference: String(data.reference), p_outcome: outcome,
+    p_transfer_code: (data.transfer_code as string) ?? null,
+    p_message: (data.reason as string) ?? null,
+    p_amount_kobo: typeof data.amount === "number" ? data.amount : null,
+    p_source: "webhook", p_snapshot: null,
+  });
+  if (error) throw new Error(`expense transfer outcome failed: ${error.message}`);
+  console.log(`Expense transfer ${eventType}: ${result?.result}`);
+  return result?.result !== "not_found" && result?.result !== "amount_mismatch";
+}
+
+// deno-lint-ignore no-explicit-any
+async function handleTransferSuccess(supabase: SupabaseClient, data: any, environment: string): Promise<boolean> {
   const reference = data.reference as string;
   const transferCode = data.transfer_code as string;
   
@@ -620,7 +650,7 @@ async function handleTransferSuccess(supabase: SupabaseClient, data: any, enviro
   // In development mode, this should never be called with real transfers
   if (environment === "development") {
     console.log("Ignoring transfer success in development mode");
-    return;
+    return true;
   }
 
   // Find the payout request - try by reference first, then by transfer_code as fallback
@@ -650,7 +680,7 @@ async function handleTransferSuccess(supabase: SupabaseClient, data: any, enviro
 
   if (!payoutRequest) {
     console.error("Payout request not found for reference:", reference, "or transfer code:", transferCode);
-    return;
+    return false;
   }
 
   // Update payout request status
@@ -669,10 +699,11 @@ async function handleTransferSuccess(supabase: SupabaseClient, data: any, enviro
   // Do NOT duplicate them here to avoid double-deduction.
 
   console.log("Transfer success processed");
+  return true;
 }
 
 // deno-lint-ignore no-explicit-any
-async function handleTransferFailed(supabase: SupabaseClient, data: any, environment: string) {
+async function handleTransferFailed(supabase: SupabaseClient, data: any, environment: string): Promise<boolean> {
   const reference = data.reference as string;
   const reason = (data.reason as string) || "Unknown failure reason";
   
@@ -680,7 +711,7 @@ async function handleTransferFailed(supabase: SupabaseClient, data: any, environ
 
   if (environment === "development") {
     console.log("Ignoring transfer failure in development mode");
-    return;
+    return true;
   }
 
   // Find the payout request
@@ -692,7 +723,7 @@ async function handleTransferFailed(supabase: SupabaseClient, data: any, environ
 
   if (error || !payoutRequest) {
     console.error("Payout request not found for reference:", reference);
-    return;
+    return false;
   }
 
   const retryCount = Number(payoutRequest.retry_count) || 0;
@@ -713,12 +744,13 @@ async function handleTransferFailed(supabase: SupabaseClient, data: any, environ
   // Do NOT manually update wallet here to avoid double-crediting.
 
   console.log("Transfer failed processed, balance restored to source pool:", payoutRequest.withdrawal_source);
+  return true;
 }
 
 // deno-lint-ignore no-explicit-any
-async function handleTransferReversed(supabase: SupabaseClient, data: any, environment: string) {
+async function handleTransferReversed(supabase: SupabaseClient, data: any, environment: string): Promise<boolean> {
   // Similar to failed, but for reversed transfers
-  await handleTransferFailed(supabase, data, environment);
+  return await handleTransferFailed(supabase, data, environment);
 }
 
 // Handle DVA assignment success (when account is created)

@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.1"
   }
   public: {
     Tables: {
@@ -4094,6 +4094,8 @@ export type Database = {
           requested_by_name: string
           status: string
           title: string
+          transfer_reference: string | null
+          transfer_state: string | null
           updated_at: string
         }
         Insert: {
@@ -4121,6 +4123,8 @@ export type Database = {
           requested_by_name: string
           status?: string
           title: string
+          transfer_reference?: string | null
+          transfer_state?: string | null
           updated_at?: string
         }
         Update: {
@@ -4148,9 +4152,85 @@ export type Database = {
           requested_by_name?: string
           status?: string
           title?: string
+          transfer_reference?: string | null
+          transfer_state?: string | null
           updated_at?: string
         }
         Relationships: []
+      }
+      expense_transfer_attempts: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string | null
+          environment: string
+          finalized_at: string | null
+          id: string
+          last_event: string | null
+          last_event_at: string | null
+          ledger_tx_id: string | null
+          provider_message: string | null
+          recipient_code: string | null
+          reference: string
+          requisition_id: string
+          reversal_tx_id: string | null
+          source: string
+          state: string
+          transfer_code: string | null
+          updated_at: string
+          verified_snapshot: Json | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by?: string | null
+          environment: string
+          finalized_at?: string | null
+          id?: string
+          last_event?: string | null
+          last_event_at?: string | null
+          ledger_tx_id?: string | null
+          provider_message?: string | null
+          recipient_code?: string | null
+          reference: string
+          requisition_id: string
+          reversal_tx_id?: string | null
+          source?: string
+          state?: string
+          transfer_code?: string | null
+          updated_at?: string
+          verified_snapshot?: Json | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string | null
+          environment?: string
+          finalized_at?: string | null
+          id?: string
+          last_event?: string | null
+          last_event_at?: string | null
+          ledger_tx_id?: string | null
+          provider_message?: string | null
+          recipient_code?: string | null
+          reference?: string
+          requisition_id?: string
+          reversal_tx_id?: string | null
+          source?: string
+          state?: string
+          transfer_code?: string | null
+          updated_at?: string
+          verified_snapshot?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expense_transfer_attempts_requisition_id_fkey"
+            columns: ["requisition_id"]
+            isOneToOne: false
+            referencedRelation: "expense_requisitions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       faqs: {
         Row: {
@@ -11427,6 +11507,16 @@ export type Database = {
         Args: { p_environment?: string; p_wallet_id: string }
         Returns: Json
       }
+      adopt_expense_transfer: {
+        Args: {
+          p_actor: string
+          p_reference: string
+          p_requisition_id: string
+          p_snapshot: Json
+          p_transfer_code: string
+        }
+        Returns: string
+      }
       apply_vendor_commission_promos: { Args: never; Returns: undefined }
       apply_vendor_wallet_correction_internal: {
         Args: {
@@ -11525,6 +11615,15 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      begin_expense_transfer: {
+        Args: {
+          p_actor: string
+          p_reference: string
+          p_requisition_id: string
+          p_source?: string
+        }
+        Returns: string
       }
       bytea_to_text: { Args: { data: string }; Returns: string }
       can_access_order_evidence: {
@@ -12093,6 +12192,18 @@ export type Database = {
           p_wallet_id: string
         }
         Returns: undefined
+      }
+      record_expense_transfer_outcome: {
+        Args: {
+          p_amount_kobo?: number
+          p_message?: string
+          p_outcome: string
+          p_reference: string
+          p_snapshot?: Json
+          p_source?: string
+          p_transfer_code?: string
+        }
+        Returns: Json
       }
       redeem_voucher_at_venue: {
         Args: { p_lookup: string; p_staff_id: string; p_vendor_id: string }
