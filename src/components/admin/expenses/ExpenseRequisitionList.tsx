@@ -20,6 +20,24 @@ export function canStartNewTransfer(status: string, transferState?: string | nul
   return !transferState || transferState === 'failed' || transferState === 'reversed';
 }
 
+/** Net provider-confirmed fee (naira) per requisition; unconfirmed fees are omitted, never guessed. */
+export function netFeesByRequisition(
+  attempts: { requisition_id: string; fee_kobo: number | null; fee_refund_kobo?: number | null }[],
+): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const a of attempts) {
+    if (a.fee_kobo == null) continue;
+    const net = a.fee_kobo - (a.fee_refund_kobo ?? 0);
+    out[a.requisition_id] = (out[a.requisition_id] ?? 0) + net / 100;
+  }
+  return out;
+}
+
+/** Principal + fee in kobo math to avoid float drift. */
+export function totalCashOut(amount: number, feeNaira: number): number {
+  return (Math.round(amount * 100) + Math.round(feeNaira * 100)) / 100;
+}
+
 const TRANSFER_LABEL: Record<string, string> = {
   initiating: 'Transfer starting…',
   processing: 'Transfer processing at Paystack',
@@ -83,6 +101,7 @@ export function ExpenseRequisitionList({ filter, onUpdate }: Props) {
   const { toast } = useToast();
 
   const [requisitions, setRequisitions] = useState<Requisition[]>([]);
+  const [fees, setFees] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
 
   // Action dialogs
@@ -121,7 +140,17 @@ export function ExpenseRequisitionList({ filter, onUpdate }: Props) {
     if (error) {
       console.error('Error fetching requisitions:', error);
     } else {
-      setRequisitions((data as Requisition[]) || []);
+      const rows = (data as Requisition[]) || [];
+      setRequisitions(rows);
+      const paidIds = rows.filter(r => r.status === 'paid').map(r => r.id);
+      if (paidIds.length) {
+        const { data: attempts } = await supabase
+          .from('expense_transfer_attempts')
+          .select('requisition_id, fee_kobo, fee_refund_kobo, state')
+          .in('requisition_id', paidIds)
+          .eq('state', 'success');
+        setFees(netFeesByRequisition(attempts ?? []));
+      } else setFees({});
     }
     setLoading(false);
   };
@@ -295,6 +324,14 @@ export function ExpenseRequisitionList({ filter, onUpdate }: Props) {
 
                 <div className="text-right flex-shrink-0">
                   <p className="text-lg font-bold text-foreground">₦{req.amount.toLocaleString()}</p>
+                  {fees[req.id] != null && (
+                    <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
+                      <p>Paystack fee: ₦{fees[req.id].toLocaleString()}</p>
+                      <p className="font-medium text-foreground">
+                        Total cash out: ₦{totalCashOut(req.amount, fees[req.id]).toLocaleString()}
+                      </p>
+                    </div>
+                  )}
 
                   <div className="flex gap-2 mt-3 justify-end flex-wrap">
                     {req.status === 'pending' && (
