@@ -34,6 +34,7 @@ interface CompanyProfitData {
   promoBonuses: number;
   referralCosts: number;
   expenseCosts: number;
+  transferFees: number;
   disputeCosts: number;
   reversalCosts: number;
   otherCredits: number;
@@ -160,6 +161,7 @@ export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
       let promoBonuses = 0;
       let referralCosts = 0;
       let expenseCosts = 0;
+      let transferFees = 0;
       let disputeCosts = 0;
       let reversalCosts = 0;
       let otherCredits = 0;
@@ -185,6 +187,8 @@ export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
         else if (tx.category === 'promo_cost' && !isCredit) promoBonuses += amount;
         else if (tx.category === 'referral_cost' && !isCredit) referralCosts += amount;
         else if (tx.category === 'expense' && !isCredit) expenseCosts += amount;
+        // Paystack transfer fees: own category so they are counted exactly once (refunds net off).
+        else if (tx.category === 'expense_fee') transferFees += isCredit ? -amount : amount;
         else if (tx.category?.includes('dispute') && !isCredit) disputeCosts += amount;
         else if (!isCredit && REVENUE_CATEGORIES.includes(tx.category)) reversalCosts += amount;
         else if (isCredit) otherCredits += amount;
@@ -198,6 +202,7 @@ export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
         promoBonuses -
         referralCosts -
         expenseCosts -
+        transferFees -
         disputeCosts -
         reversalCosts -
         otherDebits;
@@ -210,6 +215,7 @@ export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
         promoBonuses,
         referralCosts,
         expenseCosts,
+        transferFees,
         disputeCosts,
         reversalCosts,
         otherCredits,
@@ -522,9 +528,16 @@ export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
               <div className="w-8 h-8 rounded-lg bg-destructive/10 flex items-center justify-center">
                 <CreditCard className="w-4 h-4 text-destructive" />
               </div>
-              <span className="text-sm">Company Expenses</span>
+              <div>
+                <span className="text-sm">Company Expenses</span>
+                {data.transferFees > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    {formatCurrency(data.expenseCosts)} paid out + {formatCurrency(data.transferFees)} Paystack fees
+                  </p>
+                )}
+              </div>
             </div>
-            <span className="font-semibold text-destructive">-{formatCurrency(data.expenseCosts)}</span>
+            <span className="font-semibold text-destructive">-{formatCurrency(data.expenseCosts + data.transferFees)}</span>
           </div>
 
           {data.reversalCosts > 0 && (

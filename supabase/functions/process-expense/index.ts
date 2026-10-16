@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import {
   classifyInitiation, classifyVerify, isExpenseReference, matchTransferToRequisition,
-  newExpenseReference, safeTransferSnapshot,
+  newExpenseReference, safeTransferSnapshot, extractTransferFeeKobo,
 } from "../_shared/expenseTransfer.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -52,6 +52,19 @@ async function record(supabase: Db, reference: string, outcome: string, extra: R
   });
   if (error) throw new Error(`record outcome failed: ${error.message}`);
   return data;
+}
+
+/** Post the Paystack-confirmed fee once (separate company debit). Missing fee → nothing posted. */
+// deno-lint-ignore no-explicit-any
+async function recordFee(supabase: Db, reference: string, data: any, source: string, environment: string) {
+  const fee = extractTransferFeeKobo(data);
+  if (fee === null || String(data?.status ?? "").toLowerCase() !== "success") return { result: "fee_unconfirmed" };
+  const { data: res, error } = await supabase.rpc("record_expense_transfer_fee", {
+    p_reference: reference, p_fee_kobo: fee, p_source: source,
+    p_evidence: { ...safeTransferSnapshot(data, environment), fee_source: "paystack_transfer_verify" },
+  });
+  if (error) throw new Error(`record fee failed: ${error.message}`);
+  return res;
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -129,7 +142,8 @@ const handler = async (req: Request): Promise<Response> => {
         transfer_code: data?.transfer_code, amount_kobo: data?.amount, source: historical ? "historical_reconcile" : "reconcile",
         message: v.outcome === "not_found" ? "Transfer not found at Paystack" : data?.reason, snapshot,
       });
-      return json({ success: true, data: { ...summary, result } });
+      const fee = v.outcome === "success" ? await recordFee(supabase, reference, data, "reconcile_verify", environment) : null;
+      return json({ success: true, data: { ...summary, result, fee } });
     }
 
     // ---------------- PAY ----------------
@@ -199,6 +213,7 @@ const handler = async (req: Request): Promise<Response> => {
           transfer_code: data?.transfer_code, amount_kobo: data?.amount, message: data?.reason ?? providerMsg,
           source: "initiation_verify", snapshot: data ? safeTransferSnapshot(data, environment) : null,
         });
+        if (v.outcome === "success") await recordFee(supabase, reference, data, "initiation_verify", environment);
       }
     }
 

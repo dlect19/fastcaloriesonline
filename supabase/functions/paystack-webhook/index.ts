@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { crypto } from "https://deno.land/std@0.190.0/crypto/mod.ts";
 import { getWhatsAppFromNumber } from "../_shared/whatsapp.ts";
-import { isExpenseReference } from "../_shared/expenseTransfer.ts";
+import { isExpenseReference, extractTransferFeeKobo } from "../_shared/expenseTransfer.ts";
 import {
   classifyPaystackPurpose,
   recordWebhookAttempt,
@@ -637,6 +637,16 @@ async function handleExpenseTransferEvent(supabase: SupabaseClient, eventType: s
   });
   if (error) throw new Error(`expense transfer outcome failed: ${error.message}`);
   console.log(`Expense transfer ${eventType}: ${result?.result}`);
+  // Signed webhook fee is provider-confirmed; posted once, never estimated.
+  const fee = extractTransferFeeKobo(data);
+  if (eventType === "transfer.success" && fee !== null && ["applied", "noop"].includes(result?.result)) {
+    const { data: feeRes, error: feeErr } = await supabase.rpc("record_expense_transfer_fee", {
+      p_reference: String(data.reference), p_fee_kobo: fee, p_source: "webhook",
+      p_evidence: { reference: data.reference ?? null, fee_kobo: fee, fee_source: "signed_webhook", event: eventType },
+    });
+    if (feeErr) throw new Error(`expense fee failed: ${feeErr.message}`);
+    console.log(`Expense transfer fee: ${feeRes?.result}`);
+  }
   return result?.result !== "not_found" && result?.result !== "amount_mismatch";
 }
 

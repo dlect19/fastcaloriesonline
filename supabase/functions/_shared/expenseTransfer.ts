@@ -121,3 +121,16 @@ export function canStartNewTransfer(status: string, transferState?: string | nul
   if (status !== "approved") return false;
   return !transferState || transferState === "failed" || transferState === "reversed";
 }
+
+/**
+ * Provider-confirmed transfer fee in kobo, or null when Paystack did not state
+ * one. Never estimates from a fee schedule. Paystack amounts are integer kobo.
+ */
+// deno-lint-ignore no-explicit-any
+export function extractTransferFeeKobo(data: any): number | null {
+  const raw = data?.fee_charged ?? data?.fees_charged ?? data?.fees;
+  if (raw === null || raw === undefined || raw === "") return null;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0 || !Number.isInteger(n)) return null;
+  return n;
+}
