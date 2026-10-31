@@ -29,6 +29,19 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 function visibility(ratio: number) {
   act(() => mocks.observer?.([{ isIntersecting: ratio > 0, intersectionRatio: ratio } as IntersectionObserverEntry], {} as IntersectionObserver));
 }
+it('does not count a banner covered by the announcement even when it intersects the viewport', async () => {
+  const record = vi.fn().mockResolvedValue(true);
+  const original = document.elementFromPoint;
+  Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: () => document.body });
+  function Surface() { const ref = useVisibleAdImpression('ad', record); return <div ref={ref} />; }
+  try {
+    render(<Surface />); visibility(1);
+    expect(record).not.toHaveBeenCalled();
+    Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: () => null });
+    fireEvent(document, new Event('visibilitychange'));
+    await waitFor(() => expect(record).toHaveBeenCalledTimes(1));
+  } finally { Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: original }); }
+});
 it('persists once across rerenders and concurrent attempts, without requesting GPS or changing counters', async () => {
   const { result, rerender } = renderHook(useAdImpressionTracker);
   await act(async () => { await Promise.all([result.current.trackImpression(null, 'placement'), result.current.trackImpression(null, 'placement')]); });
