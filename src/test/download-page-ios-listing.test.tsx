@@ -53,7 +53,8 @@ describe('public download page iOS button', () => {
 
   it('links the iPhone tab button to the same listing', async () => {
     downloadPage();
-    fireEvent.click(await screen.findByRole('tab', { name: /iPhone/i }));
+    const tab = await screen.findByRole('tab', { name: /iPhone/i });
+    fireEvent.mouseDown(tab, { button: 0 });
     const open = await screen.findByRole('link', { name: /Open in App Store/i });
     expect(open.getAttribute('href')).toBe(APP_STORE_URL);
   });
