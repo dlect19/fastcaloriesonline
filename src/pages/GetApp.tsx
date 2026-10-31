@@ -29,6 +29,10 @@ import logo from '@/assets/fast-calories-full-logo.png';
 import customerHero from '@/assets/landing-customer-app.png';
 
 type Platform = 'android' | 'ios' | 'unknown';
+
+/** Official FastCalories iOS listing; admin's customer_ios_app_url setting can override it. */
+const IOS_APP_STORE_URL = 'https://apps.apple.com/us/app/fastcalories/id6764623463';
+
 const detectPlatform = (): Platform => {
   if (typeof navigator === 'undefined') return 'unknown';
   const ua = navigator.userAgent.toLowerCase();
@@ -40,7 +44,7 @@ const detectPlatform = (): Platform => {
 export default function GetApp() {
   const navigate = useNavigate();
   const [androidUrl, setAndroidUrl] = useState('/downloads/fastcalories-customer.apk');
-  const [iosUrl, setIosUrl] = useState<string | null>(null);
+  const [iosUrl, setIosUrl] = useState<string | null>(IOS_APP_STORE_URL);
   const [version, setVersion] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [copied, setCopied] = useState(false);
