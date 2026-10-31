@@ -114,6 +114,29 @@ export default function AdminAdPlacements() {
     checkAuth();
   }, []);
 
+  useEffect(() => {
+    // Read counters periodically even when realtime publication is unavailable.
+    let pending = false;
+    let stopped = false;
+    const refresh = async () => {
+      if (pending || document.visibilityState !== 'visible') return;
+      pending = true;
+      try {
+        const { data, error } = await supabase.from('ad_placements').select('*').order('created_at', { ascending: false });
+        if (!stopped && !error && data) setPlacements(data as AdPlacement[]);
+      } finally { pending = false; }
+    };
+    const timer = setInterval(refresh, 15000);
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, []);
+
   const checkAuth = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { navigate('/admin/auth'); return; }

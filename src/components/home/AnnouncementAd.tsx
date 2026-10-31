@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAdImpressionTracker } from '@/hooks/useAdImpressionTracker';
+import { useVisibleAdImpression } from '@/hooks/useVisibleAdImpression';
 
 interface AnnouncementAdData {
-  id: string;
+  id: string | null;
   title: string;
   description: string | null;
   image_url: string;
@@ -32,12 +33,21 @@ export function AnnouncementAd({ userLatitude, userLongitude }: AnnouncementAdPr
   const [ad, setAd] = useState<AnnouncementAdData | null>(null);
   const [dismissed, setDismissed] = useState(false);
   const { trackImpression, trackClick } = useAdImpressionTracker();
+  const recordView = useCallback(() => {
+    if (ad?.ad_placement_id) {
+      const shown = JSON.parse(sessionStorage.getItem('shown_announcement_ads') || '[]') as string[];
+      sessionStorage.setItem('shown_announcement_ads', JSON.stringify([...new Set([...shown, ad.ad_placement_id])]));
+    }
+    return trackImpression(ad?.id ?? null, ad?.ad_placement_id);
+  }, [ad, trackImpression]);
+  const impressionRef = useVisibleAdImpression(dismissed ? null : ad?.ad_placement_id, recordView);
 
   useEffect(() => {
     fetchAnnouncementAd();
   }, [userLatitude, userLongitude]);
 
   const fetchAnnouncementAd = async () => {
+    if (dismissed || ad) return;
     const now = new Date().toISOString();
     
     // Get announcement-type ads from ad_placements that are active
@@ -70,11 +80,8 @@ export function AnnouncementAd({ userLatitude, userLongitude }: AnnouncementAdPr
     const pick = unseen.length > 0 ? unseen[Math.floor(Math.random() * unseen.length)] : null;
     if (!pick) return;
 
-    // Mark as shown
-    sessionStorage.setItem(shownKey, JSON.stringify([...shown, pick.id]));
-
     setAd({
-      id: pick.advertisement_id || pick.id,
+      id: pick.advertisement_id,
       title: pick.title,
       description: pick.description,
       image_url: pick.image_url || '',
@@ -83,8 +90,6 @@ export function AnnouncementAd({ userLatitude, userLongitude }: AnnouncementAdPr
       ad_placement_id: pick.id,
     });
 
-    // Track impression
-    trackImpression(pick.advertisement_id || pick.id, pick.id);
   };
 
   if (!ad || dismissed) return null;
@@ -103,7 +108,7 @@ export function AnnouncementAd({ userLatitude, userLongitude }: AnnouncementAdPr
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-300">
-      <div className="relative bg-card rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden">
+      <div ref={impressionRef} className="relative bg-card rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden">
         <button
           onClick={() => setDismissed(true)}
           className="absolute top-3 right-3 z-10 bg-background/80 backdrop-blur rounded-full p-1.5 hover:bg-background transition-colors"

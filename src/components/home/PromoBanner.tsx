@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useAdImpressionTracker } from '@/hooks/useAdImpressionTracker';
+import { useVisibleAdImpression } from '@/hooks/useVisibleAdImpression';
 
 interface PromoItem {
   id: string;
@@ -49,6 +50,10 @@ export function PromoBanner() {
   const [current, setCurrent] = useState(0);
   const [promos, setPromos] = useState<PromoItem[]>(defaultPromos);
   const { trackImpression, trackClick } = useAdImpressionTracker();
+  const activePromo = promos[current];
+  const realAdId = activePromo && !/^[123]$/.test(activePromo.id) ? activePromo.id : null;
+  const recordView = useCallback(() => trackImpression(realAdId, activePromo?.ad_placement_id), [realAdId, activePromo?.ad_placement_id, trackImpression]);
+  const impressionRef = useVisibleAdImpression(realAdId, recordView);
 
   useEffect(() => {
     fetchAdvertisements();
@@ -61,13 +66,6 @@ export function PromoBanner() {
     }, 5000);
     return () => clearInterval(timer);
   }, [promos.length]);
-
-  // Track impression when current slide changes
-  useEffect(() => {
-    if (promos.length > 0 && promos[current]?.id && !promos[current].id.match(/^[123]$/)) {
-      trackImpression(promos[current].id, promos[current].ad_placement_id);
-    }
-  }, [current, promos]);
 
   const fetchAdvertisements = async () => {
     try {
@@ -161,7 +159,7 @@ export function PromoBanner() {
   if (promos.length === 0) return null;
 
   return (
-    <div className="relative">
+    <div ref={impressionRef} className="relative">
       <div className="overflow-hidden rounded-2xl">
         <div
           className="flex transition-transform duration-500 ease-out"
