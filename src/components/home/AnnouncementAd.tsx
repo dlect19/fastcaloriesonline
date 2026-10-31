@@ -33,7 +33,13 @@ export function AnnouncementAd({ userLatitude, userLongitude }: AnnouncementAdPr
   const [ad, setAd] = useState<AnnouncementAdData | null>(null);
   const [dismissed, setDismissed] = useState(false);
   const { trackImpression, trackClick } = useAdImpressionTracker();
-  const recordView = useCallback(() => trackImpression(ad?.id ?? null, ad?.ad_placement_id), [ad, trackImpression]);
+  const recordView = useCallback(() => {
+    if (ad?.ad_placement_id) {
+      const shown = JSON.parse(sessionStorage.getItem('shown_announcement_ads') || '[]') as string[];
+      sessionStorage.setItem('shown_announcement_ads', JSON.stringify([...new Set([...shown, ad.ad_placement_id])]));
+    }
+    return trackImpression(ad?.id ?? null, ad?.ad_placement_id);
+  }, [ad, trackImpression]);
   const impressionRef = useVisibleAdImpression(dismissed ? null : ad?.ad_placement_id, recordView);
 
   useEffect(() => {
@@ -41,6 +47,7 @@ export function AnnouncementAd({ userLatitude, userLongitude }: AnnouncementAdPr
   }, [userLatitude, userLongitude]);
 
   const fetchAnnouncementAd = async () => {
+    if (dismissed || ad) return;
     const now = new Date().toISOString();
     
     // Get announcement-type ads from ad_placements that are active
@@ -72,9 +79,6 @@ export function AnnouncementAd({ userLatitude, userLongitude }: AnnouncementAdPr
     
     const pick = unseen.length > 0 ? unseen[Math.floor(Math.random() * unseen.length)] : null;
     if (!pick) return;
-
-    // Mark as shown
-    sessionStorage.setItem(shownKey, JSON.stringify([...shown, pick.id]));
 
     setAd({
       id: pick.advertisement_id,

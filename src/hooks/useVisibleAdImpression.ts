@@ -17,6 +17,10 @@ export function useVisibleAdImpression(
     let retry: ReturnType<typeof setTimeout> | undefined;
     const attempt = async () => {
       if (stopped || saved || pending || !visible || document.visibilityState !== 'visible' || attempts >= 3) return;
+      // Intersection alone doesn't detect an announcement covering the carousel.
+      const bounds = element.getBoundingClientRect();
+      const topmost = document.elementFromPoint?.(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2);
+      if (topmost && !element.contains(topmost)) return;
       pending = true;
       attempts++;
       try { saved = await record(); } catch { saved = false; }
@@ -28,11 +32,13 @@ export function useVisibleAdImpression(
       void attempt();
     }, { threshold: [0, 0.5] });
     observer.observe(element);
+    const visibilityTimer = setInterval(attempt, 2000);
     document.addEventListener('visibilitychange', attempt);
     return () => {
       stopped = true;
       observer.disconnect();
       clearTimeout(retry);
+      clearInterval(visibilityTimer);
       document.removeEventListener('visibilitychange', attempt);
     };
   }, [identity, record]);
