@@ -1,5 +1,5 @@
 # Admin ad statistics
-- [ ] Fix event identity, atomic counters, actual visibility deduplication and admin refresh; verify without generating live ad events.
+- [x] Fixed event identity, atomic counters, viewport/document visibility with occlusion check, retry-safe deduplication and 15-second/focus admin refresh; 12 focused tests and all 748 tests passed, preview build OK. Restored only the reported ad's one saved view; zero saved clicks. Backend migration applied; frontend publication remains owner's next step. No live test events generated.
 
 # Customer live-map visuals
 - [x] Branded rider/delivery markers, direct distance line, accessible distance badge and stable framing; 62 focused tests passed, preview build/type checks clean. Live Google Maps rendering requires owner verification on an authorized origin.
