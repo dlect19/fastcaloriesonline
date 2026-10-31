@@ -1,3 +1,6 @@
+# Admin ad statistics
+- [ ] Fix event identity, atomic counters, actual visibility deduplication and admin refresh; verify without generating live ad events.
+
 # Customer live-map visuals
 - [x] Branded rider/delivery markers, direct distance line, accessible distance badge and stable framing; 62 focused tests passed, preview build/type checks clean. Live Google Maps rendering requires owner verification on an authorized origin.
 
