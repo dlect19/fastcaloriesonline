@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 import {
   Dialog,
@@ -30,6 +30,8 @@ export function ConfirmationCodeDialog({
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [scanMode, setScanMode] = useState(false);
+  const confirmRef = useRef(onConfirm);
+  confirmRef.current = onConfirm;
   useEffect(() => {
     if (!open || !scanMode || isLoading) return;
     let active = true;
@@ -38,14 +40,14 @@ export function ConfirmationCodeDialog({
     scanner.start({ facingMode: 'environment' }, { fps: 10, qrbox: 220 }, (decoded) => {
       if (!active || handled) return;
       const value = decoded.trim();
-      if (!/^\\d{6}$/.test(value)) {
+      if (!/^\d{6}$/.test(value)) {
         setError('Invalid delivery QR code.');
         return;
       }
       handled = true;
       setError('');
       setCode(value);
-      onConfirm(value);
+      confirmRef.current(value);
     }, () => {}).catch(() => {
       if (active) setError('Camera unavailable. Allow camera access or enter the code manually.');
     });
@@ -53,7 +55,7 @@ export function ConfirmationCodeDialog({
       active = false;
       void scanner.stop().catch(() => {}).finally(() => { try { scanner.clear(); } catch {} });
     };
-  }, [open, scanMode, isLoading, onConfirm]);
+  }, [open, scanMode, isLoading]);
   useEffect(() => { if (!open) { setScanMode(false); setCode(''); setError(''); } }, [open]);
 
   const handleSubmit = () => {
