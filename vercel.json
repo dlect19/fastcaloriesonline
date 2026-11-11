@@ -1,7 +1,7 @@
 {
   "rewrites": [
     {
-      "source": "/((?!api/|functions/).*)",
+      "source": "/(.*)",
       "destination": "/index.html"
     }
   ]
