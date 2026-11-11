@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import QRCode from 'qrcode';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -46,6 +47,18 @@ export default function OrderDetail() {
   const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const [order, setOrder] = useState<any>(null);
+  const [deliveryQr, setDeliveryQr] = useState<string>('');
+
+  useEffect(() => {
+    const code = order?.confirmation_code;
+    const eligible = order?.delivery_type !== 'self_pickup' && ['picked_up', 'on_the_way'].includes(order?.status);
+    if (!eligible || !code) { setDeliveryQr(''); return; }
+    let cancelled = false;
+    QRCode.toDataURL(String(code), { width: 220, margin: 2, errorCorrectionLevel: 'M' })
+      .then(url => { if (!cancelled) setDeliveryQr(url); })
+      .catch(() => { if (!cancelled) setDeliveryQr(''); });
+    return () => { cancelled = true; };
+  }, [order?.confirmation_code, order?.delivery_type, order?.status]);
   const [orderItems, setOrderItems] = useState<any[]>([]);
   const [orderItemAddons, setOrderItemAddons] = useState<Record<string, any[]>>({});
   const [prescriptions, setPrescriptions] = useState<any[]>([]);
@@ -581,6 +594,12 @@ export default function OrderDetail() {
                   {order.confirmation_code}
                 </span>
               </div>
+              {order.delivery_type !== 'self_pickup' && deliveryQr && (
+                <div className="flex flex-col items-center gap-2 pb-2">
+                  <img src={deliveryQr} alt="Delivery verification QR code" width={220} height={220} className="rounded-lg border bg-white p-2" />
+                  <p className="text-xs text-muted-foreground text-center">Your rider can scan this QR code instead of typing the delivery code.</p>
+                </div>
+              )}
               <p className="text-xs text-muted-foreground text-center">
                 {order.delivery_type === 'self_pickup'
                   ? 'This code verifies that you are the order owner'
